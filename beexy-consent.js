@@ -1,0 +1,3109 @@
+/*!
+ * Beexy Consent v1.x, Cookie Consent Management
+ * Copyright (c) 2025-2026 Voxxy Creative Lab Limited. All rights reserved.
+ *
+ * This software is proprietary and confidential. Unauthorized copying,
+ * modification, distribution, or use of this file, via any medium, is
+ * strictly prohibited without the express written permission of
+ * Voxxy Creative Lab Limited.
+ *
+ * For licensing inquiries: hello@voxxycreativelab.com
+ */
+(function () {
+    if (window.beexyConsentInitialized) return;
+    window.beexyConsentInitialized = true;
+
+    /* Banner release version (semver). Bumped every release. Reported in
+       the log payload at the logEndpoint and surfaced to consumers via
+       beexyConsentAPI. NOT the cookie schema version: that is cfg.version
+       (frozen at '1'). See CLAUDE.md Rule 10 and src/banner/CONTEXT.md
+       for the do-not-touch rationale.
+       HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
+       @v1 alias is load-bearing across every live install. See CLAUDE.md
+       Rule 11 and LESSONS.md (2026-05-29 incident). */
+    var BANNER_VERSION = '1.4.1';
+
+    /* Banner-owned cookie name. Single source of truth so the
+       migration block, cfg, AUTO_NECESSARY_COOKIES, and the
+       unknown-cookies filter (BACKLOG #21) all reference the
+       same literal. GEO_COOKIE_NAME stays declared near the
+       geo-fetch helpers (see ~L473). */
+    var CONSENT_COOKIE_NAME = 'beexy_consent';
+
+    /* ═══════════════════════════════════════════════
+       CONFIGURATION
+       Site owners set these BEFORE this script loads:
+
+       window.beexyConsentRegion          = 'NL';
+       window.beexyConsentLang            = 'nl';        // override language (optional)
+       window.beexyConsentPrivacyUrl      = 'https://example.com/privacy';
+       window.beexyConsentDataController  = 'Company Name';
+       window.beexyConsentLogoUrl         = 'https://example.com/logo.png';
+       window.beexyConsentFontUrl         = 'https://example.com/fonts/plus-jakarta-sans.css';
+       window.beexyConsentLogEndpoint     = 'https://api.example.com/consent-log';
+       window.beexyConsentPrimaryColor    = '#0b4650';   // buttons, tabs, active states
+       // button text auto-computed from primary luminance
+       window.beexyConsentBgColor         = '#f9f7f2';   // banner background
+       window.beexyConsentTextColor       = '#0b4650';   // body text in banner
+       window.beexyConsentWidgetPosition  = 'left';      // widget position: 'left' or 'right'
+       window.beexyConsentWidgetLogoUrl   = '';           // override widget logo (URL to image)
+       window.beexyConsentWidgetBgColor   = '#0b4650';   // widget background color
+       window.beexyConsentWidgetContentColor = '#e6ff2b'; // widget icon & border color
+       window.beexyConsentAgencyLogoUrl   = '';           // agency badge logo (replaces Voxxy badge)
+       window.beexyConsentAgencyUrl       = '';           // agency website URL (replaces Voxxy URL)
+       ═══════════════════════════════════════════════ */
+
+    /* Voxxy Creative Lab, brand palette (used by tiered branding) */
+    var VOXXY = {
+        cream:  '#f9f7f2',
+        red:    '#ef233c',
+        neon:   '#e6ff2b',
+        teal:   '#0b4650',
+        white:  '#fefdfc'
+    };
+
+    var VOXXY_BADGE_LOGO = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/assets/voxxy-badge-logo.svg';
+    var VOXXY_URL = 'https://voxxycreativelab.com';
+    var isAgency = (window.beexyConsentAgencyLogoUrl !== undefined);
+
+    /* Cookie database tier (BACKLOG #2, v1.4.0). Pro+ field. Basic strips
+       cookieDeclarationsGroup so window.beexyConsentCookieDatabaseTier is undefined
+       on Basic → falls through to 'small'. Defensive normalize to one of the
+       three valid values. */
+    var cookieDatabaseTier = window.beexyConsentCookieDatabaseTier || 'small';
+    if (['small', 'medium', 'large'].indexOf(cookieDatabaseTier) === -1) {
+        cookieDatabaseTier = 'small';
+    }
+
+    /* ═══════════════════════════════════════════════
+       ROOT DOMAIN COMPUTATION (cross-subdomain consent)
+       ═══════════════════════════════════════════════ */
+
+    /* Curated multi-part TLD set (~50 entries), covers Voxxy client geographies.
+       For unknown TLDs, computeRootDomain falls back to last-2-labels.
+       Operators on edge platforms (*.pages.dev, etc.) use beexyConsentRootDomainOverride. */
+    var MULTI_PART_TLDS = {
+        // Tier A, core
+        'co.uk': 1, 'org.uk': 1, 'ac.uk': 1, 'gov.uk': 1, 'me.uk': 1,
+        'com.au': 1, 'net.au': 1, 'org.au': 1, 'edu.au': 1, 'gov.au': 1,
+        'co.nz': 1, 'org.nz': 1, 'net.nz': 1,
+        'co.za': 1, 'org.za': 1, 'net.za': 1, 'ac.za': 1,
+        'com.br': 1, 'org.br': 1, 'net.br': 1,
+        'com.mx': 1, 'org.mx': 1,
+        'co.in': 1, 'net.in': 1, 'org.in': 1,
+        // Tier B, Asia-Pacific commerce + EU/Eastern Europe
+        'co.jp': 1, 'ne.jp': 1, 'or.jp': 1, 'ac.jp': 1,
+        'co.kr': 1, 'or.kr': 1, 'ne.kr': 1,
+        'com.hk': 1, 'org.hk': 1,
+        'com.tw': 1, 'org.tw': 1,
+        'com.cn': 1, 'net.cn': 1, 'org.cn': 1,
+        'com.sg': 1, 'org.sg': 1,
+        'com.my': 1, 'org.my': 1,
+        'com.tr': 1, 'net.tr': 1,
+        'com.ar': 1, 'org.ar': 1,
+        'com.ph': 1, 'org.ph': 1,
+        'com.pl': 1, 'com.ua': 1
+    };
+
+    var DNS_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+    var IPV4_REGEX = /^\d+\.\d+\.\d+\.\d+$/;
+
+    function computeRootDomain(hostname, override) {
+        // Override takes priority. Empty / falsy override falls through to auto-detect.
+        if (override) {
+            var cleaned = override.replace(/^\./, '').toLowerCase();
+            if (DNS_REGEX.test(cleaned)) {
+                return '.' + cleaned;
+            }
+            // Invalid override: fall through to auto-detect.
+        }
+
+        if (!hostname) return null;
+
+        var h = String(hostname).toLowerCase();
+
+        // Strip a single trailing dot (DNS-canonical form).
+        if (h.charAt(h.length - 1) === '.') h = h.slice(0, -1);
+
+        // Guard 1: IPv4 literal.
+        if (IPV4_REGEX.test(h)) return null;
+
+        // Guard 2: IPv6 (brackets or colons).
+        if (h.indexOf(':') !== -1 || h.charAt(0) === '[') return null;
+
+        // Guard 3: localhost / *.localhost
+        // 10 = '.localhost'.length
+        if (h === 'localhost' || h.indexOf('.localhost') === h.length - 10) return null;
+
+        // Guard 4: single-label (no dot).
+        if (h.indexOf('.') === -1) return null;
+
+        var labels = h.split('.');
+
+        // Try last 2 labels as a multi-part TLD key.
+        if (labels.length >= 3) {
+            var lastTwo = labels.slice(-2).join('.');
+            if (MULTI_PART_TLDS[lastTwo]) {
+                return '.' + labels.slice(-3).join('.');
+            }
+        }
+
+        // Default: last 2 labels.
+        return '.' + labels.slice(-2).join('.');
+    }
+
+    var ROOT_DOMAIN = computeRootDomain(location.hostname, window.beexyConsentRootDomainOverride || '');
+
+    /* ═══════════════════════════════════════════════
+       PRIVACY-PAGE DETECTION (BACKLOG #13)
+       Pure function. Byte-identical companion lives in
+       test/unit/isOnPrivacyPage.fixture.js. Keep them in sync.
+       Returns true when the current page URL matches the configured
+       privacyUrl (case-insensitive path, trailing slash stripped,
+       query and fragment ignored). Hostname is compared only when
+       privacyUrl is absolute; relative privacyUrl values are
+       host-agnostic. Unsupported schemes (mailto:, tel:, javascript:)
+       always return false.
+       ═══════════════════════════════════════════════ */
+
+    var PRIVACY_ABSOLUTE_REGEX = /^https?:\/\//i;
+    var PRIVACY_OTHER_SCHEME_REGEX = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+
+    function isOnPrivacyPage(currentHref, privacyUrlConfig) {
+        if (!currentHref || !privacyUrlConfig) return false;
+
+        var currentStr = String(currentHref).trim();
+        var privacyStr = String(privacyUrlConfig).trim();
+        if (!currentStr || !privacyStr) return false;
+
+        // Reject unsupported schemes (mailto:, tel:, javascript:, etc.).
+        if (PRIVACY_OTHER_SCHEME_REGEX.test(privacyStr) && !PRIVACY_ABSOLUTE_REGEX.test(privacyStr)) {
+            return false;
+        }
+
+        var current;
+        try {
+            current = new URL(currentStr);
+        } catch (e) {
+            return false;
+        }
+
+        var privacyIsAbsolute = PRIVACY_ABSOLUTE_REGEX.test(privacyStr);
+        var privacy;
+        try {
+            if (privacyIsAbsolute) {
+                privacy = new URL(privacyStr);
+            } else {
+                privacy = new URL(privacyStr, current.origin);
+            }
+        } catch (e) {
+            return false;
+        }
+
+        if (privacyIsAbsolute) {
+            if (privacy.hostname.toLowerCase() !== current.hostname.toLowerCase()) {
+                return false;
+            }
+        }
+
+        return normalizePrivacyPath(current.pathname) === normalizePrivacyPath(privacy.pathname);
+    }
+
+    function normalizePrivacyPath(p) {
+        var s = String(p == null ? '/' : p).toLowerCase();
+        try {
+            s = decodeURIComponent(s);
+        } catch (e) {
+            // Leave as-is on decode failure.
+        }
+        if (s.length > 1 && s.charAt(s.length - 1) === '/') {
+            s = s.slice(0, -1);
+        }
+        return s;
+    }
+
+    /* sanitizeFamily | CSS-injection-safe font-family name sanitizer.
+       Restricts to [A-Za-z0-9 \-\.]; on any invalid input or character,
+       returns '' so the caller can apply its own default. Byte-identical
+       to test/unit/sanitizeFamily.fixture.js. */
+    var FAMILY_REGEX = /^[A-Za-z0-9 \-\.]+$/;
+
+    function sanitizeFamily(value) {
+        if (typeof value !== 'string') return '';
+        var trimmed = value.replace(/^\s+|\s+$/g, '');
+        if (!trimmed) return '';
+        if (!FAMILY_REGEX.test(trimmed)) return '';
+        return trimmed;
+    }
+
+    /* ═══════════════════════════════════════════════
+       I18N HELPERS (WS4) | byte-identical to scripts/i18n.js
+       pidOf: stable id for an English cookie purpose (FNV-1a 32-bit over the
+       trimmed string -> 8 hex chars). Computed identically at build time so the
+       cookie-purposes/{tier}/{lang}.json lookups always match.
+       localizeDuration: render a duration ("30 days" / "Session") in-language
+       from a lexicon, English fallback for anything unparseable.
+       ═══════════════════════════════════════════════ */
+    function pidOf(purpose) {
+        var str = String(purpose == null ? '' : purpose).trim();
+        if (!str) return '';
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        }
+        return ('0000000' + h.toString(16)).slice(-8);
+    }
+
+    var DURATION_UNIT_ALIASES = {
+        second: 'second', seconds: 'second', sec: 'second', secs: 'second',
+        minute: 'minute', minutes: 'minute', min: 'minute', mins: 'minute',
+        hour: 'hour', hours: 'hour', hr: 'hour', hrs: 'hour',
+        day: 'day', days: 'day',
+        week: 'week', weeks: 'week',
+        month: 'month', months: 'month',
+        year: 'year', years: 'year'
+    };
+
+    function parseDuration(str) {
+        var s = String(str == null ? '' : str).trim();
+        var m = s.match(/^(\d+)\s+([A-Za-z]+)$/);
+        if (!m) return null;
+        var unit = DURATION_UNIT_ALIASES[m[2].toLowerCase()];
+        if (!unit) return null;
+        return { n: parseInt(m[1], 10), unit: unit };
+    }
+
+    function localizeDuration(str, lex) {
+        var original = String(str == null ? '' : str);
+        if (!lex || typeof lex !== 'object') return original;
+        var parsed = parseDuration(original);
+        if (parsed) {
+            var units = lex.units || {};
+            var u = units[parsed.unit];
+            if (u) {
+                var word = (parsed.n === 1) ? (u.one || u.other) : (u.other || u.one);
+                if (word) return parsed.n + ' ' + word;
+            }
+            return original;
+        }
+        var keywords = lex.keywords || {};
+        var key = original.trim().toLowerCase();
+        if (Object.prototype.hasOwnProperty.call(keywords, key) && keywords[key]) {
+            return keywords[key];
+        }
+        return original;
+    }
+
+    var EN_DURATION_LEX = {
+        units: {
+            second: { one: 'second', other: 'seconds' },
+            minute: { one: 'minute', other: 'minutes' },
+            hour: { one: 'hour', other: 'hours' },
+            day: { one: 'day', other: 'days' },
+            week: { one: 'week', other: 'weeks' },
+            month: { one: 'month', other: 'months' },
+            year: { one: 'year', other: 'years' }
+        },
+        keywords: {
+            'session': 'Session', 'sessions': 'Session', 'session cookie': 'Session',
+            'persistent': 'Persistent', 'permanent': 'Permanent', 'forever': 'Permanent',
+            'unlimited': 'Unlimited', 'no expiration': 'No expiration',
+            'local storage': 'Local storage', 'various': 'Various',
+            'varies': 'Varies', 'unknown': 'Unknown'
+        }
+    };
+
+    /* In-memory translated-purpose map for the resolved language: { pid: translated }.
+       null until loadCookiePurposes resolves on first Details open. */
+    var purposeTranslations = null;
+    var purposesRequested = false;
+
+    var PURPOSES_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/cookie-purposes/';
+
+    function getDurationLex() {
+        var texts = (globalConfig && globalConfig.texts) || {};
+        if (resolvedLang !== 'en' && texts[resolvedLang] && texts[resolvedLang].duration) {
+            return texts[resolvedLang].duration;
+        }
+        return EN_DURATION_LEX;
+    }
+
+    /* ═══════════════════════════════════════════════
+       COOKIE MIGRATION, host-only → root-scoped
+       Runs once at script init for both beexy_consent and beexy_geo.
+       ═══════════════════════════════════════════════ */
+
+    function logScopeDecision(scope, source) {
+        if (window.beexyConsentEnableDebugLogging) {
+            console.log('[Beexy Consent] Cookie scope: ' + scope + ' (' + source + ')');
+        }
+    }
+
+    function logMigration(name) {
+        if (window.beexyConsentEnableDebugLogging) {
+            console.log('[Beexy Consent] Migration: rewrote ' + name + ' at root scope, deleted host-only');
+        }
+    }
+
+    /* Log scope decision once on init. */
+    if (ROOT_DOMAIN) {
+        logScopeDecision('root domain ' + ROOT_DOMAIN, window.beexyConsentRootDomainOverride ? 'override' : 'auto-detected');
+    } else {
+        logScopeDecision('host-only', 'localhost / IP / single-label / unknown');
+    }
+
+    /* Migrate beexy_consent and beexy_geo from host-only to root-scoped if
+       a legacy cookie exists and ROOT_DOMAIN is now usable.
+       After migration the host-only cookie is gone, but readCookie still
+       returns the root-scoped value, so the if-guards remain true and
+       rewrite on every load. The rewrite is idempotent (same value, same
+       scope); the host-only delete attempt is a browser no-op. Accepted cost. */
+    if (ROOT_DOMAIN) {
+        // beexy_consent, uses 365-day expiry (config-driven expiry isn't
+        // available at script-init time; the next legitimate consent
+        // action overwrites with the proper expiry anyway).
+        var existingConsent = readCookie(CONSENT_COOKIE_NAME);
+        if (existingConsent) {
+            setCookie(CONSENT_COOKIE_NAME, existingConsent, 365);
+            setCookieHostOnly(CONSENT_COOKIE_NAME, '', -1);
+            logMigration(CONSENT_COOKIE_NAME);
+        }
+        // beexy_geo, fixed 30-day expiry per GEO_COOKIE_EXPIRY semantics.
+        var existingGeo = readCookie('beexy_geo');
+        if (existingGeo) {
+            setCookie('beexy_geo', existingGeo, 30);
+            setCookieHostOnly('beexy_geo', '', -1);
+            logMigration('beexy_geo');
+        }
+    }
+
+    var cfg = {
+        /* COOKIE SCHEMA VERSION (load-bearing). NEVER bump for a release.
+           Written into every consent cookie at line ~562 and checked on
+           read at line ~948 (parsed.version !== cfg.version causes the
+           cookie to be treated as invalid and the user re-prompted).
+           Bumping this to '2' invalidates every existing consent cookie
+           across every live client install and forces a global re-consent
+           event. Use BANNER_VERSION at the top of this file for release
+           identifiers. See CLAUDE.md Rule 10. */
+        version: '1',
+        cookieName: CONSENT_COOKIE_NAME,
+        bannerId: 'beexyConsentBanner',
+        overlayId: 'beexyConsentOverlay',
+        widgetId: 'beexyConsentWidget',
+        containerId: 'beexyConsentContainer',
+        region: 'unknown',
+        privacyPolicyUrl: window.beexyConsentPrivacyUrl || '',
+        /* BACKLOG #13: privacy-page suppression (Pro+ only).
+           Explicit === true gating so Free tier (no var injected) reads
+           undefined and resolves to false (feature off). The template's
+           defaultValue:true in Pro+ drives default-on behavior; Free's
+           missing var drives default-off. */
+        suppressOnPrivacyPage: window.beexyConsentSuppressOnPrivacyPage === true,
+        dataController: window.beexyConsentDataController || '',
+        logoUrl: window.beexyConsentLogoUrl || '',
+        fontUrl: window.beexyConsentFontUrl || '',
+        fontFamily: window.beexyConsentFontFamily || '',
+        logEndpoint: window.beexyConsentLogEndpoint || '',
+        primaryColor: window.beexyConsentPrimaryColor || '#0b4650',
+        // accentColor removed, button text is auto-computed from primary luminance
+        bgColor: window.beexyConsentBgColor || '#f9f7f2',
+        textColor: window.beexyConsentTextColor || '#0b4650',
+        showOverlay: !window.beexyConsentDisableOverlay,
+        buttonStyle: window.beexyConsentButtonStyle || 'filled',
+        buttonTextColor: window.beexyConsentButtonTextColor || '#e6ff2b',
+        borderWidth: window.beexyConsentBorderWidth || '2px',
+        cornerStyle: window.beexyConsentCornerStyle || 'rounded',
+        surfaceIntensity: window.beexyConsentSurfaceIntensity || 'auto',
+        widgetPosition: window.beexyConsentWidgetPosition || 'left',
+        widgetLogoUrl: window.beexyConsentWidgetLogoUrl || '',
+        widgetBgColor: window.beexyConsentWidgetBgColor || '#0b4650',
+        widgetContentColor: window.beexyConsentWidgetContentColor || '#e6ff2b',
+        agencyLogoUrl: window.beexyConsentAgencyLogoUrl || '',
+        agencyUrl: window.beexyConsentAgencyUrl || '',
+        badgeLogoUrl: window.beexyConsentBadgeLogoUrl || ''
+    };
+
+    /* ═══════════════════════════════════════════════
+       BANNER DENSITY (BACKLOG #14, v1.3.0)
+       Three presets. 19 tokens scale together (banner width
+       plus 18 spacing/font/dimension tokens). Undefined or
+       unknown density falls through to spacious (D10 contract,
+       preserves existing Pro+ visuals on upgrade). Free tier
+       strips the GTM field via brandingGroup removal, so its
+       data.bannerDensity is undefined -> spacious.
+       Mobile @media block (max-width: 600px) overrides these
+       so density is desktop-only by design.
+       Px values are final per the 2026-05-11/15 design pass;
+       see docs/superpowers/specs/2026-05-11-banner-density.md.
+       ═══════════════════════════════════════════════ */
+    var bannerDensity = window.beexyConsentBannerDensity;
+
+    var densityTokens = {
+        compact: {
+            'banner-width': '800px',
+            'pad-y': '17px', 'pad-x': '26px', 'pad-y-sm': '11px', 'pad-x-sm': '15px',
+            'title-size': '18px', 'title-mb': '9px',
+            'body-size': '13px', 'body-lh': '1.52',
+            'tab-margin-y': '13px', 'tab-margin-x': '26px', 'tab-pad': '4px', 'tab-gap': '4px',
+            'tab-btn-pad-y': '7px', 'tab-btn-pad-x': '11px',
+            'cat-mb': '7px',
+            'action-pad-t': '13px', 'action-pad-b': '18px', 'action-gap': '7px',
+            'btn-pad-y': '10px', 'btn-pad-x': '19px', 'btn-size': '13px',
+            'logo-h': '28px', 'badge-h': '17px', 'content-mh': '385px'
+        },
+        standard: {
+            'banner-width': '850px',
+            'pad-y': '21px', 'pad-x': '27px', 'pad-y-sm': '14px', 'pad-x-sm': '17px',
+            'title-size': '20px', 'title-mb': '11px',
+            'body-size': '14px', 'body-lh': '1.61',
+            'tab-margin-y': '17px', 'tab-margin-x': '27px', 'tab-pad': '4px', 'tab-gap': '4px',
+            'tab-btn-pad-y': '9px', 'tab-btn-pad-x': '13px',
+            'cat-mb': '9px',
+            'action-pad-t': '17px', 'action-pad-b': '23px', 'action-gap': '9px',
+            'btn-pad-y': '12px', 'btn-pad-x': '21px', 'btn-size': '14px',
+            'logo-h': '32px', 'badge-h': '19px', 'content-mh': '415px'
+        },
+        spacious: {
+            'banner-width': '900px',
+            'pad-y': '24px', 'pad-x': '28px', 'pad-y-sm': '16px', 'pad-x-sm': '18px',
+            'title-size': '22px', 'title-mb': '12px',
+            'body-size': '14px', 'body-lh': '1.7',
+            'tab-margin-y': '20px', 'tab-margin-x': '28px', 'tab-pad': '4px', 'tab-gap': '4px',
+            'tab-btn-pad-y': '10px', 'tab-btn-pad-x': '14px',
+            'cat-mb': '10px',
+            'action-pad-t': '20px', 'action-pad-b': '28px', 'action-gap': '10px',
+            'btn-pad-y': '14px', 'btn-pad-x': '22px', 'btn-size': '14px',
+            'logo-h': '36px', 'badge-h': '20px', 'content-mh': '445px'
+        }
+    };
+
+    /* Apply selected density preset's tokens to the banner container.
+       Called once after the container is appended to the DOM. Iterates
+       the matching tokens object and calls setProperty for each
+       --beexy-consent-d-* custom property; descendants inherit via cascade.
+       Undefined / unknown density falls through to spacious. */
+    function applyDensity(el, density) {
+        var tokens = densityTokens[density] || densityTokens.spacious;
+        for (var key in tokens) {
+            if (Object.prototype.hasOwnProperty.call(tokens, key)) {
+                el.style.setProperty('--beexy-consent-d-' + key, tokens[key]);
+            }
+        }
+        if (window.beexyConsentEnableDebugLogging) {
+            console.log('[Beexy Consent] Banner density: ' + (density || 'undefined -> spacious'));
+        }
+    }
+
+    /* Auto-included in Necessary: banner's own cookies */
+    var AUTO_NECESSARY_COOKIES = [
+        { name: 'beexy_consent', category: 'necessary', provider: 'Beexy Consent', duration: '1 year', purpose: 'Stores your cookie consent preferences' },
+        { name: 'beexy_geo', category: 'necessary', provider: 'Beexy Consent', duration: '30 days', purpose: 'Caches your detected geographic region' }
+    ];
+    var customCookies = window.beexyConsentCustomCookies || [];
+    /* Two-layer detection model (BACKLOG #2 v1.4.0):
+       - actualMatchedCookies: cookies present in document.cookie that match
+         an entry in the loaded knownCookies database. Full-coverage path -
+         every cookie on the page gets metadata if its name matches any
+         service in the active tier database (Small / Medium / Large).
+       - predictedCookies: cookies surfaced because their parent service's
+         script-presence signal (scriptGlobal / scriptSrc) matched. Provides
+         pre-consent transparency for the 44 curated services that carry
+         detection signals; new OCD-only services in Medium / Large land
+         here only when their cookie names actually appear.
+       getCookiesForCategory() merges both layers with de-dupe by name. */
+    var actualMatchedCookies = [];
+    var predictedCookies = [];
+    /* Cookies present on the page that are not in knownCookies,
+       customCookies, or the banner's own. Populated once on
+       init after detectKnownServices() runs. See BACKLOG #21. */
+    var unknownCookies = [];
+
+    /* ═══════════════════════════════════════════════
+       FALLBACK CONFIG
+       Used only when remote config fails to load AND
+       no inline config (window.beexyConsentConfig) is provided.
+       Opt-in only (strictest/safest).
+       ═══════════════════════════════════════════════ */
+
+    var FALLBACK_CONFIG = {
+        configVersion: '2.0.0',
+        consentMode: { waitForUpdate: 500 },
+        regions: {},
+        models: {
+            'opt-in': {
+                defaults: { necessary: true, preferences: false, analytics: false, marketing: false },
+                requireExplicit: true,
+                honorGpc: false,
+                showCloseButton: false,
+                showBanner: true,
+                buttonConfig: 'full'
+            },
+            'none': {
+                defaults: { necessary: true, preferences: true, analytics: true, marketing: true },
+                requireExplicit: false,
+                honorGpc: false,
+                showCloseButton: false,
+                showBanner: false,
+                buttonConfig: 'none'
+            }
+        },
+        fallbackModel: 'opt-in',
+        languages: ['en'],
+        expiry: { 'default': 365, regions: {} },
+        categories: [
+            { key: 'necessary', alwaysOn: true, consentTypes: ['security_storage'] },
+            { key: 'preferences', alwaysOn: false, consentTypes: ['functionality_storage', 'personalization_storage'] },
+            { key: 'analytics', alwaysOn: false, consentTypes: ['analytics_storage'] },
+            { key: 'marketing', alwaysOn: false, consentTypes: ['ad_storage', 'ad_user_data', 'ad_personalization'] }
+        ],
+        texts: {
+            en: {
+                banner: {
+                    title: 'We use cookies',
+                    description: 'This website uses cookies. Please choose your cookie preferences.'
+                },
+                tabs: { consent: 'Consent', details: 'Details', about: 'About' },
+                buttons: { allowAll: 'Allow all', denyAll: 'Deny all', customize: 'Customize', allowSelection: 'Allow selection', managePreferences: 'Manage preferences' },
+                about: {
+                    title: 'About Cookies',
+                    description: 'Cookies are small text files stored on your device.',
+                    privacyLink: 'For more information, see our {link}.',
+                    privacyLinkText: 'Privacy Policy',
+                    controllerText: 'This website is operated by {controller}. As the data controller, we are responsible for the processing of your personal data.'
+                },
+                categories: {
+                    necessary: { name: 'Necessary', description: 'Required for the website to function.' },
+                    preferences: { name: 'Preferences', description: 'Remember your preferences.' },
+                    analytics: { name: 'Statistics', description: 'Help us understand how visitors use this website.' },
+                    marketing: { name: 'Marketing', description: 'Used to track visitors across websites.' }
+                },
+                closeButton: { ariaLabel: 'Dismiss' },
+                widget: { ariaLabel: 'Manage cookie preferences' },
+                aria: { toggleLabel: '{name} cookies', toggleLabelAlwaysOn: '{name} cookies (always active)' },
+                cookieTable: { name: 'Name', purpose: 'Purpose', duration: 'Duration', provider: 'Provider' }
+            }
+        }
+    };
+
+    var globalConfig = FALLBACK_CONFIG;
+    var resolvedLang = 'en';
+
+    /* ═══════════════════════════════════════════════
+       CONFIG LOADING
+       Priority: window.beexyConsentConfig > window.beexyConsentConfigUrl > CDN
+       ═══════════════════════════════════════════════ */
+
+    var CONFIG_CDN_URL = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/beexy-global.json';
+    var LANG_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/lang/';
+    var COOKIES_TIER_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/cookies-';
+    var GEO_ENDPOINT_URL = 'https://beexy-geo.voxxycreativelab.workers.dev';
+    var GEO_COOKIE_NAME = 'beexy_geo';
+    var GEO_COOKIE_EXPIRY = 30; // days (before consent; synced to consent expiry after)
+
+    function loadConfig(callback) {
+        if (window.beexyConsentConfig && typeof window.beexyConsentConfig === 'object') {
+            globalConfig = window.beexyConsentConfig;
+            callback(null);
+            return;
+        }
+
+        var url = window.beexyConsentConfigUrl || CONFIG_CDN_URL;
+
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                globalConfig = data;
+                callback(null);
+            })
+            .catch(function (err) {
+                console.warn('[Beexy Consent] Config load failed (' + url + '):', err.message, ', using fallback config');
+                globalConfig = FALLBACK_CONFIG;
+                callback(err);
+            });
+    }
+
+    /* ═══════════════════════════════════════════════
+       LANGUAGE FILE LOADING
+       Per-language files fetched separately from CDN.
+       English is embedded in core config as fallback.
+       ═══════════════════════════════════════════════ */
+
+    function loadLanguage(lang, callback) {
+        /* Base URL override hook for self-hosting and local testing.
+           Mirrors window.beexyConsentCookiesTierBase. Use trailing slash:
+           e.g. 'http://localhost:5500/src/config/lang/' resolves to 'nl.json'. */
+        var base = window.beexyConsentLangBase || LANG_CDN_BASE;
+        var url = base + lang + '.json';
+
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                globalConfig.texts[lang] = data;
+                callback();
+            })
+            .catch(function (err) {
+                console.warn('[Beexy Consent] Language load failed (' + lang + '):', err.message, ', using English');
+                resolvedLang = 'en';
+                callback();
+            });
+    }
+
+    /* ═══════════════════════════════════════════════
+       COOKIE DATABASE TIER LOADING (BACKLOG #2, v1.4.0)
+       Fetches the OCD-derived tier file (Small / Medium / Large)
+       and injects into globalConfig.knownCookies. Parallel sibling
+       to loadConfig + resolveRegion + loadLanguage.
+       R2 guard: skipped when globalConfig.knownCookies is already
+       populated (inline-config users via window.beexyConsentConfig).
+       Fetch failure → empty array; consent still works; "Unknown"
+       residual will catch any cookies actually on the page.
+       ═══════════════════════════════════════════════ */
+
+    function loadCookieDatabase(tier, callback) {
+        /* Base URL override hook for self-hosting and local testing.
+           Mirrors window.beexyConsentConfigUrl for beexy-global.json. Use trailing
+           hyphen pattern: e.g. 'http://localhost:5500/src/config/cookie-tiers/cookies-'
+           will resolve to 'cookies-small.json' / 'cookies-medium.json' etc. */
+        var base = window.beexyConsentCookiesTierBase || COOKIES_TIER_CDN_BASE;
+        var url = base + tier + '.json';
+
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                /* Only overwrite if knownCookies is empty/absent. Belt-and-braces
+                   for the R2 guard at the call site (inline-config path may have
+                   populated knownCookies between scheduling and fetch resolution). */
+                if (!globalConfig.knownCookies || globalConfig.knownCookies.length === 0) {
+                    globalConfig.knownCookies = data;
+                }
+                callback();
+            })
+            .catch(function (err) {
+                console.warn('[Beexy Consent] cookie-database tier "' + tier + '" (' + url + ') load failed:', err.message, '. Cookie metadata coverage will be reduced for this page load (banner remains functional).');
+                callback();
+            });
+    }
+
+    /* ═══════════════════════════════════════════════
+       COOKIE-PURPOSE TRANSLATION LOADING (WS4)
+       Lazy: fetched on FIRST Details-tab open, only when resolvedLang !== 'en'.
+       Tier-sliced: cookie-purposes/{tier}/{lang}.json sized to the site's tier.
+       Graceful degrade: on any failure the table keeps verbatim English purposes
+       (the English cookie DB is already in memory). Mirrors loadCookieDatabase.
+       ═══════════════════════════════════════════════ */
+    function loadCookiePurposes(tier, lang, callback) {
+        var base = window.beexyConsentPurposesBase || PURPOSES_CDN_BASE;
+        var url = base + tier + '/' + lang + '.json';
+        fetch(url)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                purposeTranslations = data || {};
+                callback();
+            })
+            .catch(function (err) {
+                console.warn('[Beexy Consent] cookie-purpose translations "' + tier + '/' + lang +
+                    '" (' + url + ') load failed:', err.message,
+                    '. Cookie purposes shown in English for this page load (banner remains functional).');
+                purposeTranslations = {}; // mark resolved-but-empty so we do not retry
+                callback();
+            });
+    }
+
+    /* ═══════════════════════════════════════════════
+       REGION RESOLUTION
+       Priority: window.beexyConsentRegion > beexy_geo cookie > geo endpoint > 'unknown'
+       ═══════════════════════════════════════════════ */
+
+    function resolveRegion(callback) {
+        // 1. Explicit region set (GTM template or manual)
+        if (window.beexyConsentRegion) {
+            cfg.region = window.beexyConsentRegion;
+            callback();
+            return;
+        }
+
+        // 2. Cached geo cookie (no API call needed)
+        var geoCookie = readCookie(GEO_COOKIE_NAME);
+        if (geoCookie) {
+            cfg.region = geoCookie;
+            callback();
+            return;
+        }
+
+        // 3. Fetch from geo endpoint
+        fetch(GEO_ENDPOINT_URL)
+            .then(function (response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.json();
+            })
+            .then(function (data) {
+                var region = (data && data.region) ? data.region : 'unknown';
+                cfg.region = region;
+                if (region !== 'unknown') {
+                    setCookie(GEO_COOKIE_NAME, region, GEO_COOKIE_EXPIRY);
+                }
+                callback();
+            })
+            .catch(function (err) {
+                console.warn('[Beexy Consent] Geo detection failed:', err.message, ', defaulting to opt-in');
+                cfg.region = 'unknown';
+                callback();
+            });
+    }
+
+    function validateConfig(config) {
+        if (!config || typeof config !== 'object') return false;
+        if (!config.models || typeof config.models !== 'object') return false;
+        if (!config.categories || !Array.isArray(config.categories)) return false;
+        if (!config.texts || typeof config.texts !== 'object') return false;
+        if (!config.fallbackModel || !config.models[config.fallbackModel]) return false;
+        return true;
+    }
+
+    /* ═══════════════════════════════════════════════
+       LANGUAGE RESOLUTION
+       Priority: beexyConsentLang > <html lang> > navigator > 'en'
+       Called once after config loads.
+       ═══════════════════════════════════════════════ */
+
+    function matchLanguage(tag, available) {
+        if (!tag) return null;
+        var lower = tag.toLowerCase();
+        // Exact match (e.g. 'zh-TW' if config has 'zh-TW')
+        for (var i = 0; i < available.length; i++) {
+            if (available[i].toLowerCase() === lower) return available[i];
+        }
+        // Primary subtag (e.g. 'pt-BR' → 'pt', 'nl-NL' → 'nl')
+        var primary = lower.split('-')[0];
+        for (var i = 0; i < available.length; i++) {
+            if (available[i].toLowerCase() === primary) return available[i];
+        }
+        return null;
+    }
+
+    function resolveLanguage() {
+        var available = globalConfig.languages || Object.keys(globalConfig.texts || {});
+
+        // 1. Explicit override
+        if (window.beexyConsentLang && typeof window.beexyConsentLang === 'string') {
+            var explicit = matchLanguage(window.beexyConsentLang, available);
+            if (explicit) return explicit;
+        }
+
+        // 2. <html lang> attribute
+        var htmlLang = document.documentElement.lang;
+        if (htmlLang) {
+            var fromHtml = matchLanguage(htmlLang, available);
+            if (fromHtml) return fromHtml;
+        }
+
+        // 3. navigator.languages (subtag matching)
+        var navLangs = navigator.languages || (navigator.language ? [navigator.language] : []);
+        for (var i = 0; i < navLangs.length; i++) {
+            var fromNav = matchLanguage(navLangs[i], available);
+            if (fromNav) return fromNav;
+        }
+
+        // 4. Default
+        return 'en';
+    }
+
+    /* ═══════════════════════════════════════════════
+       CONFIG HELPERS
+       ═══════════════════════════════════════════════ */
+
+    function getTextFromLang(langTexts, parts) {
+        var current = langTexts;
+        for (var i = 0; i < parts.length; i++) {
+            if (current && typeof current === 'object') {
+                current = current[parts[i]];
+            } else {
+                return undefined;
+            }
+        }
+        return (typeof current === 'string') ? current : undefined;
+    }
+
+    function getText(path) {
+        var texts = globalConfig.texts || {};
+        var parts = path.split('.');
+
+        // Try resolved language first
+        if (resolvedLang !== 'en' && texts[resolvedLang]) {
+            var result = getTextFromLang(texts[resolvedLang], parts);
+            if (result !== undefined) return result;
+        }
+
+        // Fallback to English (per-key)
+        var en = getTextFromLang(texts['en'] || {}, parts);
+        return (en !== undefined) ? en : '';
+    }
+
+    function buildConsentModeState(permissions) {
+        var state = {};
+        var categories = globalConfig.categories || [];
+        for (var i = 0; i < categories.length; i++) {
+            var cat = categories[i];
+            var granted = cat.alwaysOn || (permissions[cat.key] === true);
+            var value = granted ? 'granted' : 'denied';
+            var types = cat.consentTypes || [];
+            for (var j = 0; j < types.length; j++) {
+                state[types[j]] = value;
+            }
+        }
+        return state;
+    }
+
+    /* ═══════════════════════════════════════════════
+       REGION MODES & MAPPING (config-driven)
+       ═══════════════════════════════════════════════ */
+
+    function getModelName() {
+        var regions = globalConfig.regions || {};
+        return regions[cfg.region] || globalConfig.fallbackModel || 'opt-in';
+    }
+
+    function getMode() {
+        var name = getModelName();
+        return globalConfig.models[name] || globalConfig.models[globalConfig.fallbackModel];
+    }
+
+    function getButtonConfig() {
+        var override = globalConfig.regionOverrides && globalConfig.regionOverrides[cfg.region];
+        if (override && override.buttonConfig) return override.buttonConfig;
+        var mode = getMode();
+        return mode.buttonConfig || 'full';
+    }
+
+    function getConsentExpiry() {
+        var expiry = globalConfig.expiry || {};
+        var regionExpiry = expiry.regions || {};
+        return regionExpiry[cfg.region] || expiry['default'] || 365;
+    }
+
+    /* ═══════════════════════════════════════════════
+       GPC (GLOBAL PRIVACY CONTROL) DETECTION
+       ═══════════════════════════════════════════════ */
+
+    function isGpcEnabled() {
+        return navigator.globalPrivacyControl === true;
+    }
+
+    function getEffectiveDefaults() {
+        var mode = getMode();
+        var d = {
+            necessary: true,
+            preferences: mode.defaults.preferences,
+            analytics: mode.defaults.analytics,
+            marketing: mode.defaults.marketing
+        };
+        if (mode.honorGpc && isGpcEnabled()) {
+            d.analytics = false;
+            d.marketing = false;
+        }
+        return d;
+    }
+
+    /* ═══════════════════════════════════════════════
+       GTM / GOOGLE CONSENT MODE V2
+       Consent defaults are fired after config loads,
+       with correct region-specific values. No
+       pessimistic-then-update pattern needed.
+       ═══════════════════════════════════════════════ */
+
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    window.gtag = window.gtag || gtag;
+
+    /* ═══════════════════════════════════════════════
+       CONSENT STATE
+       ═══════════════════════════════════════════════ */
+
+    var consentState = {
+        version: cfg.version,
+        explicitConsent: false,
+        permissions: { necessary: true, preferences: false, analytics: false, marketing: false }
+    };
+
+    /* Focus management: track element focused before banner opened (WCAG 2.4.3) */
+    var lastFocusedElement = null;
+
+    /* ═══════════════════════════════════════════════
+       COOKIE HELPERS
+       ═══════════════════════════════════════════════ */
+
+    function readCookie(name) {
+        var nameEQ = name + '=';
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var c = cookies[i];
+            while (c.charAt(0) === ' ') c = c.substring(1);
+            if (c.indexOf(nameEQ) === 0) {
+                return decodeURIComponent(c.substring(nameEQ.length));
+            }
+        }
+        return null;
+    }
+
+    function setCookie(name, value, days) {
+        var expires = '';
+        if (days) {
+            var d = new Date();
+            d.setTime(d.getTime() + (days * 86400000));
+            expires = '; expires=' + d.toUTCString();
+        }
+        var secure = location.protocol === 'https:' ? '; Secure' : '';
+        var domain = ROOT_DOMAIN ? '; domain=' + ROOT_DOMAIN : '';
+        document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax' + secure + domain;
+    }
+
+    /* setCookieHostOnly, used only for the migration delete step that
+       clears legacy host-only cookies. Never use in new code paths. */
+    function setCookieHostOnly(name, value, days) {
+        var expires = '';
+        if (days) {
+            var d = new Date();
+            d.setTime(d.getTime() + (days * 86400000));
+            expires = '; expires=' + d.toUTCString();
+        }
+        var secure = location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax' + secure;
+    }
+
+    /* isConsentExpired(payload, expiryDays, graceDays)
+       Returns true if the consent payload's timestamp is older than
+       (expiryDays - graceDays). Defensive: missing or unparseable
+       timestamp counts as expired so the banner re-prompts rather
+       than honoring an unverifiable record. See BACKLOG #8. */
+    function isConsentExpired(payload, expiryDays, graceDays) {
+        if (!payload || !payload.timestamp) return true;
+        var written = Date.parse(payload.timestamp);
+        if (isNaN(written)) return true;
+        var ageMs = Date.now() - written;
+        var ttlMs = (expiryDays - graceDays) * 86400000;
+        return ageMs >= ttlMs;
+    }
+
+    /* ═══════════════════════════════════════════════
+       COLOR HELPERS
+       ═══════════════════════════════════════════════ */
+
+    function hexToRgb(hex) {
+        hex = hex.replace('#', '');
+        var num = parseInt(hex, 16);
+        return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+    }
+
+    function getLuma(rgb) {
+        return (rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722) / 255;
+    }
+
+    /* ═══════════════════════════════════════════════
+       CONSENT MODE UPDATE & EVENTS
+       ═══════════════════════════════════════════════ */
+
+    function updateConsentMode(permissions) {
+        gtag('consent', 'update', buildConsentModeState(permissions));
+    }
+
+    function sendConsentEvents(type, permissions) {
+        updateConsentMode(permissions);
+        var allDenied = !permissions.analytics && !permissions.marketing && !permissions.preferences;
+        var allGranted = permissions.analytics && permissions.marketing && permissions.preferences;
+        var consentOutcome;
+        if (type === 'existing') { consentOutcome = 'existing'; }
+        else if (type === 'expired') { consentOutcome = 'expired'; }
+        else if (type === 'auto-grant') { consentOutcome = 'auto_grant'; }
+        else if (type === 'accept-all') { consentOutcome = 'granted_all'; }
+        else if (type === 'deny-all') { consentOutcome = 'denied_all'; }
+        else if (type === 'dnsmpi') { consentOutcome = 'do_not_sell'; }
+        else if (allDenied) { consentOutcome = 'denied_all'; }
+        else if (allGranted) { consentOutcome = 'granted_all'; }
+        else { consentOutcome = 'partial'; }
+        setTimeout(function () {
+            dataLayer.push({
+                'event': 'cookie_consent_update',
+                'consentType': type,
+                'consent_outcome': consentOutcome,
+                'permissions': permissions,
+                'gpcEnabled': isGpcEnabled(),
+                'region': cfg.region
+            });
+            if (permissions.analytics) {
+                dataLayer.push({ 'event': 'cookie_consent_statistics' });
+            }
+            if (permissions.marketing) {
+                dataLayer.push({ 'event': 'cookie_consent_marketing' });
+            }
+            if (permissions.preferences) {
+                dataLayer.push({ 'event': 'cookie_consent_preferences' });
+            }
+        }, 200);
+    }
+
+    /* ═══════════════════════════════════════════════
+       SERVER-SIDE CONSENT LOGGING
+       ═══════════════════════════════════════════════ */
+
+    function logConsent(type, permissions) {
+        if (!cfg.logEndpoint) return;
+        try {
+            var payload = JSON.stringify({
+                timestamp: new Date().toISOString(),
+                action: type,
+                permissions: permissions,
+                bannerVersion: BANNER_VERSION,
+                gpcEnabled: isGpcEnabled(),
+                region: cfg.region,
+                pageUrl: location.href
+            });
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon(cfg.logEndpoint, payload);
+            } else {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', cfg.logEndpoint, true);
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send(payload);
+            }
+        } catch (e) { /* silent */ }
+    }
+
+    /* ═══════════════════════════════════════════════
+       BANNER ACTIONS
+       ═══════════════════════════════════════════════ */
+
+    function handleConsent(type) {
+        var permissions = { necessary: true };
+        var toggles = document.querySelectorAll('.beexy-consent-toggle');
+        for (var i = 0; i < toggles.length; i++) {
+            var cat = toggles[i].getAttribute('data-category');
+            if (type === 'accept-all') {
+                permissions[cat] = true;
+            } else if (type === 'deny-all' && cat !== 'necessary') {
+                permissions[cat] = false;
+            } else {
+                permissions[cat] = toggles[i].classList.contains('active');
+            }
+        }
+        permissions.necessary = true;
+        if (type === 'dnsmpi') {
+            permissions.analytics = false;
+            permissions.marketing = false;
+        }
+
+        consentState.permissions = permissions;
+        consentState.explicitConsent = true;
+
+        var consentExpiry = getConsentExpiry();
+        setCookie(cfg.cookieName, JSON.stringify({
+            version: consentState.version,
+            permissions: permissions,
+            explicitConsent: true,
+            timestamp: new Date().toISOString(),
+            region: cfg.region,
+            gpcApplied: isGpcEnabled()
+        }), consentExpiry);
+        setCookie(GEO_COOKIE_NAME, cfg.region, consentExpiry);
+
+        closeBanner();
+        showWidget();
+        sendConsentEvents(type, permissions);
+        logConsent(type, permissions);
+
+        window.beexyConsent = consentState;
+    }
+
+    /* ═══════════════════════════════════════════════
+       BANNER SHOW / HIDE
+       No cookie wall: page remains scrollable
+       ═══════════════════════════════════════════════ */
+
+    /* Fallback for browsers without dvh support: use window.innerHeight */
+    function fixBannerHeight() {
+        var banner = document.getElementById(cfg.bannerId);
+        if (!banner || banner.style.display === 'none') return;
+        var gap = window.innerWidth <= 600 ? 16 : 32;
+        banner.style.maxHeight = (window.innerHeight - gap) + 'px';
+    }
+
+    var dvhSupported = (function () {
+        try {
+            var el = document.createElement('div');
+            el.style.maxHeight = '100dvh';
+            return el.style.maxHeight === '100dvh';
+        } catch (e) { return false; }
+    })();
+
+    if (!dvhSupported) {
+        window.addEventListener('resize', fixBannerHeight);
+        window.addEventListener('orientationchange', function () {
+            setTimeout(fixBannerHeight, 150);
+        });
+    }
+
+    function showBanner() {
+        var banner = document.getElementById(cfg.bannerId);
+        var overlay = document.getElementById(cfg.overlayId);
+        if (banner && overlay) {
+            /* WCAG 2.4.3: save current focus so we can restore it on close */
+            lastFocusedElement = document.activeElement;
+
+            banner.style.display = '';
+            if (!dvhSupported) fixBannerHeight();
+            if (cfg.showOverlay) {
+                overlay.style.display = 'block';
+                document.documentElement.classList.add('beexy-consent-blur');
+            }
+            hideWidget();
+
+            /* WCAG 1.3.1: mark background inert so screen readers stay inside the dialog */
+            var bodyChildren = document.body.children;
+            for (var bi = 0; bi < bodyChildren.length; bi++) {
+                if (bodyChildren[bi].id !== cfg.containerId) {
+                    bodyChildren[bi].setAttribute('inert', '');
+                }
+            }
+
+            /* WCAG 2.4.3 + BACKLOG #20: initial focus lands on the banner
+               shell itself (not the Consent tab). The shell carries
+               tabindex="-1" and the .beexy-consent-shell-focused class paints an
+               outer ring around the whole dialog. The ring persists through
+               mouse interaction with inner controls. The keydown listener
+               below removes the class on the user's first navigation key
+               and transfers focus to the Consent tab so the inner
+               :focus-visible ring takes over for keyboard users. */
+            setTimeout(function () {
+                banner.classList.add('beexy-consent-shell-focused');
+                banner.focus({ preventScroll: true });
+            }, 50);
+
+            /* WCAG 4.1.3: announce banner title to screen readers */
+            var liveRegion = document.getElementById('beexyConsentLiveRegion');
+            if (liveRegion) {
+                var bannerTitle = document.getElementById('beexyConsentTitle');
+                liveRegion.textContent = bannerTitle ? bannerTitle.textContent : '';
+            }
+
+            /* Sync toggle states to stored consent (if any) */
+            if (consentState.permissions) {
+                var toggles = document.querySelectorAll('.beexy-consent-toggle');
+                for (var i = 0; i < toggles.length; i++) {
+                    if (toggles[i].classList.contains('disabled')) continue;
+                    var cat = toggles[i].getAttribute('data-category');
+                    if (consentState.permissions[cat]) {
+                        toggles[i].classList.add('active');
+                        toggles[i].setAttribute('aria-checked', 'true');
+                    } else {
+                        toggles[i].classList.remove('active');
+                        toggles[i].setAttribute('aria-checked', 'false');
+                    }
+                }
+                updateDetailsBtns();
+            }
+        }
+    }
+
+    function closeBanner() {
+        var banner = document.getElementById(cfg.bannerId);
+        var overlay = document.getElementById(cfg.overlayId);
+        if (banner && overlay) {
+            banner.style.display = 'none';
+            if (cfg.showOverlay) {
+                overlay.style.display = 'none';
+                document.documentElement.classList.remove('beexy-consent-blur');
+            }
+
+            /* WCAG 1.3.1: remove inert from page background */
+            var bodyChildren = document.body.children;
+            for (var bi = 0; bi < bodyChildren.length; bi++) {
+                bodyChildren[bi].removeAttribute('inert');
+            }
+
+            /* WCAG 4.1.3: clear live region */
+            var liveRegion = document.getElementById('beexyConsentLiveRegion');
+            if (liveRegion) liveRegion.textContent = '';
+
+            /* BACKLOG #20: clean up shell-focused class on close so the next
+               banner open starts with a fresh shell-focused state. */
+            var bannerOnClose = document.getElementById(cfg.bannerId);
+            if (bannerOnClose) bannerOnClose.classList.remove('beexy-consent-shell-focused');
+
+            /* WCAG 2.4.3: restore focus to element that was active before banner opened */
+            if (lastFocusedElement && lastFocusedElement.focus) {
+                lastFocusedElement.focus();
+            } else {
+                var widget = document.getElementById(cfg.widgetId);
+                if (widget) widget.focus({ focusVisible: true });
+            }
+            lastFocusedElement = null;
+        }
+    }
+
+    /* ═══════════════════════════════════════════════
+       RE-OPEN CONSENT WIDGET
+       Floating button shown after banner is dismissed
+       ═══════════════════════════════════════════════ */
+
+    function showWidget() {
+        var widget = document.getElementById(cfg.widgetId);
+        if (widget) widget.style.display = 'flex';
+    }
+
+    function hideWidget() {
+        var widget = document.getElementById(cfg.widgetId);
+        if (widget) widget.style.display = 'none';
+    }
+
+    /* ═══════════════════════════════════════════════
+       TAB SWITCHING
+       ═══════════════════════════════════════════════ */
+
+    function switchTab(tab) {
+        var panels = document.querySelectorAll('.beexy-consent-panel');
+        var tabs = document.querySelectorAll('.beexy-consent-tab');
+        for (var i = 0; i < panels.length; i++) panels[i].classList.remove('active');
+        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('active');
+
+        var panel = document.getElementById(tab + 'Panel');
+        if (panel) panel.classList.add('active');
+
+        for (var k = 0; k < tabs.length; k++) {
+            if (tabs[k].getAttribute('data-tab') === tab) {
+                tabs[k].classList.add('active');
+                break;
+            }
+        }
+
+        /* WS4: lazy-load translated purposes on first Details open. */
+        if (tab === 'details' && resolvedLang !== 'en' && !purposesRequested) {
+            purposesRequested = true;
+            loadCookiePurposes(cookieDatabaseTier, resolvedLang, patchPurposeCells);
+        }
+    }
+
+    /* WS4: after translations arrive, patch only the purpose text cells in place.
+       textContent (not innerHTML) is XSS-safe; touches no listeners or structure. */
+    function patchPurposeCells() {
+        if (!purposeTranslations) return;
+        var cells = document.querySelectorAll('#detailsPanel td[data-pid]');
+        for (var i = 0; i < cells.length; i++) {
+            var pid = cells[i].getAttribute('data-pid');
+            if (pid && purposeTranslations[pid]) {
+                cells[i].textContent = purposeTranslations[pid];
+            }
+        }
+    }
+
+    /* ═══════════════════════════════════════════════
+       CATEGORY EXPAND / COLLAPSE
+       ═══════════════════════════════════════════════ */
+
+    function toggleCategory(header) {
+        var category = header.closest('.beexy-consent-category');
+        var all = document.querySelectorAll('.beexy-consent-category');
+        for (var i = 0; i < all.length; i++) {
+            if (all[i] !== category) all[i].classList.remove('expanded');
+        }
+        category.classList.toggle('expanded');
+    }
+
+    /* ═══════════════════════════════════════════════
+       TOGGLE SWITCHES
+       ═══════════════════════════════════════════════ */
+
+    function toggleSwitch(toggle, event) {
+        if (event) event.stopPropagation();
+        if (toggle.classList.contains('disabled')) return;
+        toggle.classList.toggle('active');
+        toggle.setAttribute('aria-checked', toggle.classList.contains('active') ? 'true' : 'false');
+        updateDetailsBtns();
+    }
+
+    function updateDetailsBtns() {
+        var toggles = document.querySelectorAll('.beexy-consent-toggle:not(.disabled)');
+        var allActive = true;
+        var noneActive = true;
+        for (var i = 0; i < toggles.length; i++) {
+            if (!toggles[i].classList.contains('active')) { allActive = false; }
+            if (toggles[i].classList.contains('active')) { noneActive = false; }
+        }
+        if (getModelName() === 'opt-in') {
+            /* 3-button layout: enable "Allow selection" when any non-necessary toggle is on */
+            var selBtn = document.getElementById('beexyConsentAllowSelBtn');
+            if (selBtn) selBtn.disabled = noneActive;
+        } else {
+            /* opt-out / opt-out-gpc: dynamic left button */
+            var denySelBtn = document.getElementById('beexyConsentDenySelBtn');
+            if (!denySelBtn) return;
+            denySelBtn.textContent = noneActive ? getText('buttons.denyAll') : getText('buttons.allowSelection');
+            denySelBtn._consentType = noneActive ? 'deny-all' : 'selected';
+        }
+    }
+
+    /* ═══════════════════════════════════════════════
+       CHECK EXISTING CONSENT
+       ═══════════════════════════════════════════════ */
+
+    /* autoShowOrSuppress: internal helper. Called from
+       checkExistingConsent() at every site where the banner would
+       normally auto-show (no cookie, stale schema, parse error).
+       If suppressOnPrivacyPage is enabled and the current page matches
+       privacyUrl, show only the floating widget so the visitor can read
+       the privacy policy without being blocked. Otherwise show the
+       popup. Public API entry points (beexyConsentAPI.showBanner,
+       resetConsent) bypass this and call showBanner() directly because
+       the user explicitly requested the popup. */
+    function autoShowOrSuppress() {
+        if (cfg.suppressOnPrivacyPage && cfg.privacyPolicyUrl &&
+            isOnPrivacyPage(window.location.href, cfg.privacyPolicyUrl)) {
+            if (window.beexyConsentEnableDebugLogging) {
+                console.log('[Beexy Consent] suppressed on privacy page (' + cfg.privacyPolicyUrl + ')');
+            }
+            showWidget();
+            return;
+        }
+        showBanner();
+    }
+
+    function checkExistingConsent() {
+        var existing = readCookie(cfg.cookieName);
+        if (!existing) {
+            autoShowOrSuppress();
+            return;
+        }
+        try {
+            var parsed = JSON.parse(existing);
+            /* COOKIE SCHEMA CHECK. cfg.version is the cookie schema
+               version, not the release version. A mismatch means the
+               cookie was written by a version of the banner that used
+               a different schema. Today schema is at '1' and has been
+               since launch. Do not bump cfg.version casually: every
+               existing user re-consents on mismatch. See CLAUDE.md
+               Rule 10 and src/banner/CONTEXT.md. */
+            if (parsed.version !== cfg.version) {
+                autoShowOrSuppress();
+            } else if (isConsentExpired(parsed, getConsentExpiry(), 1)) {
+                /* Consent has aged past the region's expiryDays
+                   (minus 1-day grace for clock skew). Fire a
+                   revocation event so GTM tags can differentiate
+                   expiry-driven re-prompt from a first visit, then
+                   re-prompt as if no cookie existed. The OLD cookie
+                   is NOT deleted here: handleConsent() overwrites
+                   it with a fresh timestamp on the user's next
+                   choice. See BACKLOG #8, CLAUDE.md Rule 2.
+
+                   SESSION-SCOPED FIRE-ONCE GUARD (BACKLOG #32). The
+                   cookie stays expired until the user makes a choice,
+                   so without a guard the 'expired' event would fire
+                   on every page load of every un-chosen session. We
+                   set a sessionStorage marker so GTM tags listening
+                   on consent_outcome === 'expired' fire once per
+                   browser session. Re-prompt still happens regardless.
+                   try/catch covers incognito / disabled-storage
+                   contexts (Safari Private, Firefox strict). */
+                var expiredEventAlreadyFired = false;
+                try {
+                    expiredEventAlreadyFired = window.sessionStorage.getItem('beexyConsentExpiredEventFired') === '1';
+                } catch (storageErr) {
+                    /* sessionStorage unavailable, fall through to fire */
+                }
+                if (!expiredEventAlreadyFired) {
+                    sendConsentEvents('expired', {
+                        necessary: true,
+                        preferences: false,
+                        analytics: false,
+                        marketing: false
+                    });
+                    logConsent('expired', parsed.permissions);
+                    try {
+                        window.sessionStorage.setItem('beexyConsentExpiredEventFired', '1');
+                    } catch (storageErr) {
+                        /* sessionStorage write failed; event already fired so
+                           next page load may re-fire but the impact is bounded
+                           to the storage-unavailable case. */
+                    }
+                }
+                autoShowOrSuppress();
+            } else {
+                consentState = parsed;
+                window.beexyConsent = consentState;
+                showWidget();
+                sendConsentEvents('existing', parsed.permissions);
+            }
+        } catch (e) {
+            autoShowOrSuppress();
+        }
+    }
+
+    /* ═══════════════════════════════════════════════
+       COOKIE DECLARATIONS
+       Detect known services and build declaration tables.
+       ═══════════════════════════════════════════════ */
+
+    function detectKnownServices() {
+        var knownServices = globalConfig.knownCookies || [];
+
+        /* ─── LAYER 2 (RETAINED): script-presence detection ───
+           For each service in the database, check if its script is loaded
+           on the page (window global OR script-tag src). If so, surface
+           ALL its cookies, even ones not yet set in document.cookie -
+           for pre-consent transparency ("these are the cookies this site
+           will set if you accept"). Only the 44 curated services carry
+           non-null scriptGlobal / scriptSrc, so this layer is mostly
+           a no-op for OCD-only services in Medium / Large tiers.
+           ─────────────────────────────────────────────────── */
+        var predicted = [];
+        var scripts = document.getElementsByTagName('script');
+        for (var i = 0; i < knownServices.length; i++) {
+            var svc = knownServices[i];
+            var detected = false;
+
+            if (svc.scriptGlobal && typeof window[svc.scriptGlobal] !== 'undefined') {
+                detected = true;
+            }
+            if (!detected && svc.scriptSrc) {
+                for (var j = 0; j < scripts.length; j++) {
+                    var src = scripts[j].src || '';
+                    if (src.indexOf(svc.scriptSrc) !== -1) {
+                        detected = true;
+                        break;
+                    }
+                }
+            }
+
+            if (detected) {
+                for (var k = 0; k < svc.cookies.length; k++) {
+                    predicted.push(svc.cookies[k]);
+                }
+            }
+        }
+        predictedCookies = predicted;
+
+        /* ─── LAYER 0 (NEW): document.cookie → database lookup ───
+           Scan cookies actually present on the page; for each, regex-match
+           against every database entry's cookie name pattern (handling
+           wildcard '*' the same way flattenKnownCookieNames does). On match,
+           surface that database entry's metadata. This is the full-coverage
+           path, works for any service in the loaded tier, no per-service
+           detection signal required. Empty when no matching cookies are
+           set yet (typical pre-consent state); populates as third-party
+           scripts set their cookies after consent.
+           ───────────────────────────────────────────────────────── */
+        var actual = [];
+        var actualCookies = parseActualCookies();
+        if (actualCookies.length > 0) {
+            for (var ai = 0; ai < knownServices.length; ai++) {
+                var ksvc = knownServices[ai];
+                var kcookies = ksvc.cookies || [];
+                for (var ki = 0; ki < kcookies.length; ki++) {
+                    var kc = kcookies[ki];
+                    var rawName = kc.name || '';
+                    if (!rawName) continue;
+                    var escaped = rawName.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+                    var pattern = new RegExp('^' + escaped + '$');
+                    for (var ac = 0; ac < actualCookies.length; ac++) {
+                        if (pattern.test(actualCookies[ac].name)) {
+                            actual.push(kc);
+                            break; /* one match per database entry is enough */
+                        }
+                    }
+                }
+            }
+        }
+        actualMatchedCookies = actual;
+    }
+
+    function getCookiesForCategory(categoryKey) {
+        /* Four-layer merge with de-dup by cookie name (BACKLOG #2 v1.4.0):
+           - Layer 1: AUTO_NECESSARY_COOKIES (banner's own; 'necessary' only)
+           - Layer 0: actualMatchedCookies (document.cookie → database, full coverage)
+           - Layer 2: predictedCookies (script-presence, pre-consent transparency)
+           - Layer 3: customCookies (Pro+ GTM template SIMPLE_TABLE field)
+           Earlier layers win on collision (same metadata source anyway since
+           Layers 0 + 2 read from the same knownCookies database). */
+        var result = [];
+        var seen = {};
+
+        function add(c) {
+            var key = (c.name || '').toLowerCase();
+            if (!key || seen[key]) return;
+            seen[key] = 1;
+            result.push(c);
+        }
+
+        // Layer 1: AUTO_NECESSARY_COOKIES (only for 'necessary')
+        if (categoryKey === 'necessary') {
+            for (var i = 0; i < AUTO_NECESSARY_COOKIES.length; i++) {
+                add(AUTO_NECESSARY_COOKIES[i]);
+            }
+        }
+
+        // Layer 0: actual cookies on page matched to database (full-coverage path)
+        for (var a = 0; a < actualMatchedCookies.length; a++) {
+            if (actualMatchedCookies[a].category === categoryKey) {
+                add(actualMatchedCookies[a]);
+            }
+        }
+
+        // Layer 2: predicted cookies from detected scripts (pre-consent transparency)
+        for (var j = 0; j < predictedCookies.length; j++) {
+            if (predictedCookies[j].category === categoryKey) {
+                add(predictedCookies[j]);
+            }
+        }
+
+        // Layer 3: custom cookies from GTM template field
+        for (var k = 0; k < customCookies.length; k++) {
+            if ((customCookies[k].category || '').toLowerCase() === categoryKey) {
+                add(customCookies[k]);
+            }
+        }
+
+        return result;
+    }
+
+    function buildCookieTableHTML(cookies) {
+        if (!cookies || cookies.length === 0) return '';
+
+        var html = '<div class="beexy-consent-cookie-table-wrap">' +
+            '<table class="beexy-consent-cookie-table">' +
+            '<thead><tr>' +
+            '<th>' + getText('cookieTable.name') + '</th>' +
+            '<th>' + getText('cookieTable.purpose') + '</th>' +
+            '<th>' + getText('cookieTable.duration') + '</th>' +
+            '<th>' + getText('cookieTable.provider') + '</th>' +
+            '</tr></thead><tbody>';
+
+        var translate = (resolvedLang !== 'en');
+        var durLex = getDurationLex();
+        for (var i = 0; i < cookies.length; i++) {
+            var c = cookies[i];
+            var english = c.purpose || '';
+            var pid = (translate && english) ? pidOf(english) : '';
+            /* If translations already loaded (re-render path), use them; else emit
+               English now and let the data-pid patch upgrade it after the fetch. */
+            var purposeText = (pid && purposeTranslations && purposeTranslations[pid]) || english;
+            var pidAttr = pid ? ' data-pid="' + pid + '"' : '';
+            html += '<tr>' +
+                '<td>' + (c.name || '') + '</td>' +
+                '<td' + pidAttr + '>' + purposeText + '</td>' +
+                '<td>' + (translate ? localizeDuration(c.duration || '', durLex) : (c.duration || '')) + '</td>' +
+                '<td>' + (c.provider || '') + '</td>' +
+                '</tr>';
+        }
+
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    /* ═══════════════════════════════════════════════
+       UNKNOWN COOKIES (BACKLOG #21, v1.4.0)
+       Surfaces cookies actually present in document.cookie
+       that are NOT in globalConfig.knownCookies, NOT in the
+       Pro+ customCookies GTM table, and NOT the banner's own
+       (beexy_consent, beexy_geo). Renders at the bottom of the
+       Details tab so end users see proprietary / partner
+       cookies the database does not yet classify.
+
+       Limitation: runs once on banner init. Cookies set AFTER
+       consent is granted by post-consent third-party scripts
+       are NOT captured. document.cookie also only exposes
+       first-party cookies (current registrable domain), so
+       third-party cookies set by ad/analytics platforms with
+       their own domain are NEVER visible here by design.
+       ═══════════════════════════════════════════════ */
+
+    function flattenKnownCookieNames(gc) {
+        var patterns = [];
+        var services = (gc && gc.knownCookies) || [];
+        for (var i = 0; i < services.length; i++) {
+            var cookies = services[i].cookies || [];
+            for (var j = 0; j < cookies.length; j++) {
+                var raw = cookies[j].name || '';
+                if (!raw) continue;
+                /* Escape regex specials EXCEPT '*' so '*' wildcards
+                   in knownCookies (e.g. '_ga_*', 'intercom-id-*')
+                   convert to '.*' after the escape pass. */
+                var escaped = raw.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+                patterns.push(new RegExp('^' + escaped + '$'));
+            }
+        }
+        return patterns;
+    }
+
+    function parseActualCookies() {
+        var raw = document.cookie || '';
+        if (!raw) return [];
+        var parts = raw.split(';');
+        var out = [];
+        var seen = {};
+        for (var i = 0; i < parts.length; i++) {
+            var eq = parts[i].indexOf('=');
+            var name = (eq > -1 ? parts[i].slice(0, eq) : parts[i]).trim();
+            var rawVal = eq > -1 ? parts[i].slice(eq + 1).trim() : '';
+            if (!name || seen[name]) continue;
+            seen[name] = 1;
+            /* Decode percent-encoded values. Some servers set values with
+               literal '%' that aren't valid URI escape sequences (e.g.
+               '%PROMO%' from legacy tracking); decodeURIComponent throws
+               on those. Fall back to the raw string so the cookie still
+               surfaces in the banner. */
+            var val;
+            try { val = decodeURIComponent(rawVal); } catch (e) { val = rawVal; }
+            out.push({ name: name, value: val });
+        }
+        return out;
+    }
+
+    /* HTML escape for untrusted cookie name + value strings. Cookie names
+       per RFC 6265 cannot contain HTML metacharacters; values CAN. Escape
+       both before innerHTML insertion. NOT retrofitted into the known-
+       cookie buildCookieTableHTML render path: those values come from
+       trusted globalConfig + customCookies (site-owner controlled). */
+    function escHTML(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    }
+
+    function getUnknownCookies(actualCookies, knownPatterns, customList) {
+        var ownNames = { };
+        ownNames[CONSENT_COOKIE_NAME] = 1;
+        ownNames[GEO_COOKIE_NAME] = 1;
+        var customNames = {};
+        for (var i = 0; i < (customList || []).length; i++) {
+            var n = (customList[i].name || '').toLowerCase();
+            if (n) customNames[n] = 1;
+        }
+        var unknown = [];
+        outer: for (var k = 0; k < actualCookies.length; k++) {
+            var c = actualCookies[k];
+            if (ownNames[c.name]) continue;
+            if (customNames[c.name.toLowerCase()]) continue;
+            for (var p = 0; p < knownPatterns.length; p++) {
+                if (knownPatterns[p].test(c.name)) continue outer;
+            }
+            unknown.push({ name: c.name, value: c.value });
+        }
+        return unknown;
+    }
+
+    function buildUnknownCookiesHTML(unknownList) {
+        if (!unknownList || unknownList.length === 0) return '';
+        var title = getText('unknownCookies.title');
+        var intro = getText('unknownCookies.intro');
+        var nameHdr = getText('cookieTable.name');
+        var valueHdr = getText('cookieTable.value');
+        var rows = '';
+        for (var i = 0; i < unknownList.length; i++) {
+            var nm = escHTML(unknownList[i].name);
+            var fullVal = unknownList[i].value || '';
+            /* Truncate to 40 chars to keep the table tidy; full value
+               surfaces in the cell's title attribute on hover. Both
+               cell text and title are HTML-escaped (cookie values are
+               attacker-controllable input). */
+            var shortVal = fullVal.length > 40 ? fullVal.slice(0, 40) + '...' : fullVal;
+            var valCell = escHTML(shortVal);
+            var valTitle = escHTML(fullVal);
+            rows += '<tr><td>' + nm + '</td><td title="' + valTitle + '">' + valCell + '</td></tr>';
+        }
+        /* Renders as a 5th dropdown that visually matches the 4 category
+           cards. Reuses beexy-consent-category / beexy-consent-category-header / beexy-consent-category-
+           content classes so border, hover, expand chevron, and content
+           padding stay consistent. No beexy-consent-category-controls block because
+           unknown cookies have no consent toggle (they are observed, not
+           controlled). The header click handler at the "Category headers"
+           wiring section was extended to expand-on-any-click for headers
+           that lack a toggle (no-toggle path), so the entire header acts
+           as the expand/collapse trigger. */
+        return (
+            '<div class="beexy-consent-category beexy-consent-category--unknown">' +
+                '<button class="beexy-consent-category-header">' +
+                    '<div class="beexy-consent-category-info">' +
+                        '<div class="beexy-consent-expand-icon"></div>' +
+                        '<span class="beexy-consent-category-name">' + escHTML(title) + ' (' + unknownList.length + ')</span>' +
+                    '</div>' +
+                '</button>' +
+                '<div class="beexy-consent-category-content">' +
+                    '<p>' + escHTML(intro) + '</p>' +
+                    '<div class="beexy-consent-cookie-table-wrap">' +
+                        '<table class="beexy-consent-cookie-table">' +
+                            '<thead><tr><th>' + escHTML(nameHdr) + '</th><th>' + escHTML(valueHdr) + '</th></tr></thead>' +
+                            '<tbody>' + rows + '</tbody>' +
+                        '</table>' +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        );
+    }
+
+    /* ═══════════════════════════════════════════════
+       BUILD BANNER HTML
+       Text and categories driven by globalConfig.
+       Language resolved via resolveLanguage() with
+       per-key English fallback.
+       ═══════════════════════════════════════════════ */
+
+    function getDnsmpiLinkHtml() {
+        if (getModelName() !== 'opt-out-gpc') return '';
+        return '<div class="beexy-consent-dnsmpi">' +
+            '<button class="beexy-consent-dnsmpi-btn">' + getText('buttons.doNotSell') + '</button>' +
+            '</div>';
+    }
+
+    function createBannerHTML() {
+        var defaults = getEffectiveDefaults();
+        var model = getMode();
+
+        /* Color computation for dynamic theming */
+        var pRgb = hexToRgb(cfg.primaryColor);
+        var tRgb = hexToRgb(cfg.textColor);
+        var bRgb = hexToRgb(cfg.bgColor);
+        function pRgba(o) { return 'rgba(' + pRgb[0] + ',' + pRgb[1] + ',' + pRgb[2] + ',' + o + ')'; }
+        function tRgba(o) { return 'rgba(' + tRgb[0] + ',' + tRgb[1] + ',' + tRgb[2] + ',' + o + ')'; }
+        /* Auto-compute button text: white on dark primary, black on light primary.
+           Override with cfg.buttonTextColor if set (not 'auto'). */
+        var btnText = cfg.buttonTextColor !== 'auto'
+            ? cfg.buttonTextColor
+            : (getLuma(pRgb) < 0.5 ? '#ffffff' : '#000000');
+        /* Outline color: custom buttonTextColor for outline buttons, or primary when auto */
+        var btnOutline = cfg.buttonTextColor !== 'auto' ? cfg.buttonTextColor : cfg.primaryColor;
+        var oRgb = hexToRgb(btnOutline);
+        function oRgba(o) { return 'rgba(' + oRgb[0] + ',' + oRgb[1] + ',' + oRgb[2] + ',' + o + ')'; }
+        var primaryDark = 'rgb(' +
+            Math.max(0, Math.round(pRgb[0] * 0.82)) + ',' +
+            Math.max(0, Math.round(pRgb[1] * 0.82)) + ',' +
+            Math.max(0, Math.round(pRgb[2] * 0.82)) + ')';
+        /* Surface intensity: how much the bg shifts for tabs/category headers.
+           Direction is always luminance-aware: light bg → darken, dark bg → lighten.
+           Presets control magnitude only. Auto picks both magnitude and direction. */
+        var si = cfg.surfaceIntensity;
+        var bgLuma = getLuma(bRgb);
+        var darkBg = bgLuma < 0.5;
+        /* Widget glow: content color on dark widget bg (bright glow), widget bg on light (dark shadow) */
+
+
+        var magnitudeMap = { subtle: 0.06, light: 0.12, medium: 0.20, strong: 0.30 };
+        var magnitude;
+
+        if (si === 'auto' || !magnitudeMap[si]) {
+            /* auto, luminance-aware magnitude */
+            if (bgLuma > 0.85) { magnitude = 0.10; }
+            else if (bgLuma > 0.6) { magnitude = 0.12; }
+            else if (bgLuma > 0.3) { magnitude = 0.15; }
+            else { magnitude = 0.20; }
+        } else {
+            magnitude = magnitudeMap[si];
+        }
+
+        var surface;
+        if (darkBg) {
+            /* Lighten: blend toward white */
+            surface = 'rgb(' +
+                Math.min(255, Math.round(bRgb[0] + (255 - bRgb[0]) * magnitude)) + ',' +
+                Math.min(255, Math.round(bRgb[1] + (255 - bRgb[1]) * magnitude)) + ',' +
+                Math.min(255, Math.round(bRgb[2] + (255 - bRgb[2]) * magnitude)) + ')';
+        } else {
+            /* Darken: blend toward black */
+            surface = 'rgb(' +
+                Math.max(0, Math.round(bRgb[0] * (1 - magnitude))) + ',' +
+                Math.max(0, Math.round(bRgb[1] * (1 - magnitude))) + ',' +
+                Math.max(0, Math.round(bRgb[2] * (1 - magnitude))) + ')';
+        }
+
+        var privacyLink = cfg.privacyPolicyUrl
+            ? ' ' + getText('about.privacyLink').replace('{link}', '<a href="' + cfg.privacyPolicyUrl + '" target="_blank" rel="noopener" style="color:var(--beexy-consent-text);text-decoration:underline;">' + getText('about.privacyLinkText') + '</a>')
+            : '';
+
+        var controllerText = cfg.dataController
+            ? '<p class="beexy-consent-text" style="margin-top:12px;">' + getText('about.controllerText').replace('{controller}', '<strong>' + cfg.dataController + '</strong>') + privacyLink + '</p>'
+            : (privacyLink ? '<p class="beexy-consent-text" style="margin-top:12px;">' + privacyLink.substring(1) + '</p>' : '');
+
+        /* Features link (BACKLOG #4). Small inline link in the About panel,
+           below the title and above the description. Hidden gracefully when
+           globalConfig.featuresLinkUrl is empty (e.g. config not yet updated). */
+        var featuresLinkHtml = globalConfig.featuresLinkUrl
+            ? '<a class="beexy-consent-features-link" href="' + globalConfig.featuresLinkUrl + '" target="_blank" rel="noopener noreferrer">' + getText('about.featuresLinkText') + '</a>'
+            : '';
+
+        /* Button config: determines which buttons appear on Consent and About panels */
+        var btnConfig = getButtonConfig();
+        var consentButtons = '';
+        if (btnConfig === 'full') {
+            consentButtons =
+                '<button class="beexy-consent-btn beexy-consent-accept-btn">' + getText('buttons.allowAll') + '</button>' +
+                '<button class="beexy-consent-btn beexy-consent-customize-btn">' + getText('buttons.customize') + '</button>' +
+                '<button class="beexy-consent-btn beexy-consent-deny-btn">' + getText('buttons.denyAll') + '</button>';
+        } else if (btnConfig === 'accept-manage') {
+            consentButtons =
+                '<button class="beexy-consent-btn beexy-consent-accept-btn">' + getText('buttons.allowAll') + '</button>' +
+                '<button class="beexy-consent-btn beexy-consent-btn-secondary beexy-consent-customize-btn">' + getText('buttons.managePreferences') + '</button>';
+        } else if (btnConfig === 'notice') {
+            consentButtons =
+                '<button class="beexy-consent-btn beexy-consent-accept-btn">' + getText('buttons.allowAll') + '</button>';
+        }
+
+        /* Font: self-host or use system stack.
+           To use Plus Jakarta Sans, set window.beexyConsentFontUrl to your self-hosted CSS.
+           To use a different family (e.g. Inter), set BOTH window.beexyConsentFontUrl
+           AND window.beexyConsentFontFamily to the exact CSS family name. Empty
+           beexyConsentFontFamily defaults to "Plus Jakarta Sans" for backwards
+           compatibility. Do NOT use Google Fonts directly | sends user IP
+           to Google before consent. */
+        var fontCSS = cfg.fontUrl ? '@import url("' + cfg.fontUrl + '");' : '';
+        var requestedFamily = sanitizeFamily(cfg.fontFamily) || 'Plus Jakarta Sans';
+        var fontFamily = cfg.fontUrl
+            ? '"' + requestedFamily + '", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+        /* Corner radius presets: [banner, buttons/tabs, tab pills] */
+        var radiusMap = { pill: ['40px', '24px', '20px'], rounded: ['20px', '12px', '9px'], soft: ['8px', '6px', '4px'], sharp: ['2px', '2px', '1px'] };
+        var radii = radiusMap[cfg.cornerStyle] || radiusMap.rounded;
+
+        var html = '<style>' +
+            fontCSS +
+
+            ':root {' +
+                '--beexy-consent-bg: ' + cfg.bgColor + ';' +
+                '--beexy-consent-btn-text: ' + btnText + ';' +
+                '--beexy-consent-btn-outline: ' + btnOutline + ';' +
+                '--beexy-consent-border-width: ' + cfg.borderWidth + ';' +
+                '--beexy-consent-primary: ' + cfg.primaryColor + ';' +
+                '--beexy-consent-text: ' + cfg.textColor + ';' +
+                '--beexy-consent-surface: ' + surface + ';' +
+                '--beexy-consent-primary-dark: ' + primaryDark + ';' +
+                '--beexy-consent-text-dim: ' + tRgba(0.7) + ';' +
+                '--beexy-consent-border: ' + tRgba(0.12) + ';' +
+                '--beexy-consent-border-hover: ' + tRgba(0.22) + ';' +
+                '--beexy-consent-radius: ' + radii[0] + ';' +
+                '--beexy-consent-radius-inner: ' + radii[1] + ';' +
+                '--beexy-consent-radius-sm: ' + radii[2] + ';' +
+                '--beexy-consent-font: ' + fontFamily + ';' +
+                '--beexy-consent-widget-bg: ' + cfg.widgetBgColor + ';' +
+                '--beexy-consent-widget-content: ' + cfg.widgetContentColor + ';' +
+                /* Banner density tokens (BACKLOG #14, v1.3.0). Defaults =
+                   spacious so pre-v1.3.0 visuals are preserved. JS applies
+                   compact / standard overrides via setProperty after the
+                   shell mounts. Mobile (@media max-width: 600px) is NOT
+                   affected -- mobile layout remains content-driven. */
+                '--beexy-consent-d-banner-width: 900px;' +
+                '--beexy-consent-d-pad-y: 24px;' +
+                '--beexy-consent-d-pad-x: 28px;' +
+                '--beexy-consent-d-pad-y-sm: 16px;' +
+                '--beexy-consent-d-pad-x-sm: 18px;' +
+                '--beexy-consent-d-title-size: 22px;' +
+                '--beexy-consent-d-title-mb: 12px;' +
+                '--beexy-consent-d-body-size: 14px;' +
+                '--beexy-consent-d-body-lh: 1.7;' +
+                '--beexy-consent-d-tab-margin-y: 20px;' +
+                '--beexy-consent-d-tab-margin-x: 28px;' +
+                '--beexy-consent-d-tab-pad: 4px;' +
+                '--beexy-consent-d-tab-gap: 4px;' +
+                '--beexy-consent-d-tab-btn-pad-y: 10px;' +
+                '--beexy-consent-d-tab-btn-pad-x: 14px;' +
+                '--beexy-consent-d-cat-mb: 10px;' +
+                '--beexy-consent-d-action-pad-t: 20px;' +
+                '--beexy-consent-d-action-pad-b: 28px;' +
+                '--beexy-consent-d-action-gap: 10px;' +
+                '--beexy-consent-d-btn-pad-y: 14px;' +
+                '--beexy-consent-d-btn-pad-x: 22px;' +
+                '--beexy-consent-d-btn-size: 14px;' +
+                '--beexy-consent-d-logo-h: 36px;' +
+                '--beexy-consent-d-badge-h: 20px;' +
+                '--beexy-consent-d-content-mh: 445px;' +
+            '}' +
+
+            'html.beexy-consent-blur > body > *:not(#' + cfg.containerId + ') {' +
+                'filter: blur(4px);' +
+                'transition: filter 0.2s ease;' +
+            '}' +
+
+            '#' + cfg.overlayId + ' {' +
+                'position: fixed;' +
+                'top: 0; left: 0;' +
+                'width: 100%; height: 100%;' +
+                'background: ' + pRgba(0.4) + ';' +
+                'z-index: 2147483646;' +
+                'display: none;' +
+            '}' +
+
+            '/* CSS isolation, block host page interference */' +
+            '.beexy-consent, .beexy-consent *, .beexy-consent *::before, .beexy-consent *::after {' +
+                'all: revert;' +
+                'box-sizing: border-box;' +
+            '}' +
+
+            '.beexy-consent {' +
+                'text-align: left;' +
+                'color: var(--beexy-consent-text);' +
+                'font-size: 16px;' +
+                'line-height: 1.5;' +
+                'letter-spacing: normal;' +
+                'word-spacing: normal;' +
+                'text-transform: none;' +
+                'text-indent: 0;' +
+                'white-space: normal;' +
+                'font-style: normal;' +
+                'font-weight: 400;' +
+                'text-decoration: none;' +
+                'visibility: visible;' +
+                'direction: ltr;' +
+                'position: fixed;' +
+                'top: 50%; left: 50%;' +
+                'transform: translate(-50%, -50%);' +
+                'width: var(--beexy-consent-d-banner-width);' +
+                'max-width: calc(100vw - 32px);' +
+                'max-height: calc(100dvh - 32px);' +
+                'background: var(--beexy-consent-bg);' +
+                'border-radius: var(--beexy-consent-radius);' +
+                'border: 1px solid var(--beexy-consent-border);' +
+                'font-family: var(--beexy-consent-font);' +
+                'z-index: 2147483647;' +
+                /* overflow:clip + overflow-clip-margin allows focus rings on
+                   edge-adjacent children to render outside the banner without
+                   being clipped. overflow:hidden retained as fallback for
+                   pre-2021 browsers (Chrome <90 / Firefox <102 / Safari <16.4). */
+                'overflow: hidden;' +
+                'overflow: clip;' +
+                'overflow-clip-margin: 8px;' +
+                'display: flex;' +
+                'flex-direction: column;' +
+                'animation: beexyConsentPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);' +
+                'box-shadow: 0 0 0 1px ' + pRgba(0.06) + ', 0 40px 80px ' + pRgba(0.18) + ', 0 0 80px rgba(239,35,60,0.06);' +
+            '}' +
+
+            '@keyframes beexyConsentPop {' +
+                'from { transform: translate(-50%, -46%) scale(0.96); opacity: 0; }' +
+                'to { transform: translate(-50%, -50%) scale(1); opacity: 1; }' +
+            '}' +
+
+            '.beexy-consent-header {' +
+                'padding: var(--beexy-consent-d-pad-y) var(--beexy-consent-d-pad-x) 0 var(--beexy-consent-d-pad-x);' +
+                'display: flex;' +
+                'align-items: center;' +
+                'justify-content: space-between;' +
+                'flex-shrink: 0;' +
+            '}' +
+            '.beexy-consent-logo-img {' +
+                'height: var(--beexy-consent-d-logo-h);' +
+                'width: auto;' +
+                'object-fit: contain;' +
+            '}' +
+            '.beexy-consent-header-right {' +
+                'display: flex;' +
+                'align-items: center;' +
+                'gap: 12px;' +
+                'margin-left: auto;' +
+            '}' +
+            '.beexy-consent-badge {' +
+                'display: flex;' +
+                'flex-direction: column;' +
+                'align-items: flex-end;' +
+                'text-decoration: none;' +
+                'gap: 2px;' +
+                'flex-shrink: 0;' +
+            '}' +
+            '.beexy-consent-badge-text {' +
+                'font-size: 9px;' +
+                'color: var(--beexy-consent-text);' +
+                'opacity: 0.6;' +
+                'line-height: 1;' +
+                'font-family: var(--beexy-consent-font);' +
+            '}' +
+            '.beexy-consent-badge-logo {' +
+                'height: var(--beexy-consent-d-badge-h);' +
+                'width: auto;' +
+                'object-fit: contain;' +
+            '}' +
+            '.beexy-consent-badge-mono {' +
+                'display: inline-block;' +
+                'width: 60px;' +
+                'background-color: var(--beexy-consent-text);' +
+                '-webkit-mask-size: contain;' +
+                'mask-size: contain;' +
+                '-webkit-mask-repeat: no-repeat;' +
+                'mask-repeat: no-repeat;' +
+                '-webkit-mask-position: center;' +
+                'mask-position: center;' +
+            '}' +
+
+            '.beexy-consent-close-btn {' +
+                'width: 32px;' +
+                'height: 32px;' +
+                'border: none;' +
+                'background: transparent;' +
+                'border-radius: 50%;' +
+                'cursor: pointer;' +
+                'position: relative;' +
+                'transition: background 0.2s ease;' +
+                'flex-shrink: 0;' +
+            '}' +
+            '.beexy-consent-close-btn:hover {' +
+                'background: ' + pRgba(0.08) + ';' +
+            '}' +
+            '.beexy-consent-close-btn::before, .beexy-consent-close-btn::after {' +
+                'content: "";' +
+                'position: absolute;' +
+                'top: 50%; left: 50%;' +
+                'width: 16px; height: 2px;' +
+                'background: var(--beexy-consent-primary);' +
+                'border-radius: 1px;' +
+            '}' +
+            '.beexy-consent-close-btn::before { transform: translate(-50%, -50%) rotate(45deg); }' +
+            '.beexy-consent-close-btn::after { transform: translate(-50%, -50%) rotate(-45deg); }' +
+
+            '.beexy-consent-tabs {' +
+                'display: flex;' +
+                'flex-shrink: 0;' +
+                'margin: var(--beexy-consent-d-tab-margin-y) var(--beexy-consent-d-tab-margin-x) 0;' +
+                'background: var(--beexy-consent-surface);' +
+                'border-radius: var(--beexy-consent-radius-inner);' +
+                'padding: var(--beexy-consent-d-tab-pad);' +
+                'gap: var(--beexy-consent-d-tab-gap);' +
+                'border: 1px solid var(--beexy-consent-border);' +
+            '}' +
+            '.beexy-consent-tab {' +
+                'flex: 1;' +
+                'padding: var(--beexy-consent-d-tab-btn-pad-y) var(--beexy-consent-d-tab-btn-pad-x);' +
+                'border: none;' +
+                'background: var(--beexy-consent-surface);' +
+                'font-family: var(--beexy-consent-font);' +
+                'font-size: 13px;' +
+                'font-weight: 500;' +
+                'color: var(--beexy-consent-text-dim);' +
+                'cursor: pointer;' +
+                'border-radius: var(--beexy-consent-radius-sm);' +
+                'transition: background 0.2s ease;' +
+                'letter-spacing: 0.3px;' +
+            '}' +
+            '.beexy-consent-tab:hover { background: ' + pRgba(0.12) + '; }' +
+            '.beexy-consent-tab.active {' +
+                'background: var(--beexy-consent-primary);' +
+                'color: var(--beexy-consent-btn-text);' +
+                'box-shadow: 0 2px 8px ' + pRgba(0.25) + ';' +
+            '}' +
+
+            /* Outline mode: active tab also outlined */
+            (cfg.buttonStyle === 'outline'
+                ? '.beexy-consent-tab.active {' +
+                      'background: transparent;' +
+                      'color: var(--beexy-consent-btn-outline);' +
+                      'border: var(--beexy-consent-border-width) solid var(--beexy-consent-btn-outline);' +
+                      'box-shadow: none;' +
+                  '}'
+                : cfg.buttonStyle === 'filled-outline'
+                ? '.beexy-consent-tab.active {' +
+                      'border: var(--beexy-consent-border-width) solid var(--beexy-consent-btn-text);' +
+                  '}'
+                : ''
+            ) +
+
+            '.beexy-consent-content {' +
+                'padding: var(--beexy-consent-d-pad-y) var(--beexy-consent-d-pad-x);' +
+                'min-height: 0;' +
+                'max-height: var(--beexy-consent-d-content-mh);' +
+                'overflow-y: auto;' +
+                'overscroll-behavior: contain;' +
+                'flex: 1;' +
+            '}' +
+            '.beexy-consent-content::-webkit-scrollbar { width: 4px; }' +
+            '.beexy-consent-content::-webkit-scrollbar-track { background: transparent; }' +
+            '.beexy-consent-content::-webkit-scrollbar-thumb { background: var(--beexy-consent-border); border-radius: 4px; }' +
+
+            '.beexy-consent-title {' +
+                'font-family: var(--beexy-consent-font);' +
+                'font-size: var(--beexy-consent-d-title-size);' +
+                'font-weight: 700;' +
+                'color: var(--beexy-consent-text);' +
+                'margin-bottom: var(--beexy-consent-d-title-mb);' +
+                'letter-spacing: -0.3px;' +
+                'line-height: 1.2;' +
+            '}' +
+            '.beexy-consent-text {' +
+                'font-size: var(--beexy-consent-d-body-size);' +
+                'line-height: var(--beexy-consent-d-body-lh);' +
+                'color: var(--beexy-consent-text-dim);' +
+                'margin-bottom: 0;' +
+            '}' +
+
+            /* Features link (BACKLOG #4). Small inline link in About panel
+               below the title, above the description. Picks up client
+               primary color so branding flows automatically. */
+            '.beexy-consent-features-link {' +
+                'display: block;' +
+                'line-height: 1;' +
+                'margin: 0 0 8px;' +
+                'font-family: var(--beexy-consent-font);' +
+                'font-size: 12px;' +
+                'color: var(--beexy-consent-primary);' +
+                'text-decoration: none;' +
+                'font-weight: 600;' +
+                'letter-spacing: 0.2px;' +
+            '}' +
+            /* Scope: when title is inside #aboutPanel, override the
+               density-aware bottom margin to a small fixed 4px so the
+               Legal details link sits tight under it. Consent/Details
+               panel titles are unaffected (they have no link below). */
+            '#aboutPanel .beexy-consent-title { margin-bottom: 4px; }' +
+            '.beexy-consent-features-link:hover {' +
+                'text-decoration: underline;' +
+            '}' +
+            '.beexy-consent-features-link:focus-visible {' +
+                'outline: 2px solid var(--beexy-consent-primary);' +
+                'outline-offset: 2px;' +
+                'border-radius: 2px;' +
+            '}' +
+
+            '.beexy-consent-category {' +
+                'margin-bottom: var(--beexy-consent-d-cat-mb);' +
+                'border: 1px solid var(--beexy-consent-border);' +
+                'border-radius: var(--beexy-consent-radius-inner);' +
+                'overflow: hidden;' +
+                'transition: border-color 0.2s ease;' +
+            '}' +
+            '.beexy-consent-category:hover { border-color: var(--beexy-consent-border-hover); }' +
+            '.beexy-consent-category-header {' +
+                'display: flex;' +
+                'align-items: center;' +
+                'justify-content: space-between;' +
+                'padding: var(--beexy-consent-d-pad-y-sm) var(--beexy-consent-d-pad-x-sm);' +
+                'background: var(--beexy-consent-surface);' +
+                'cursor: pointer;' +
+                'border: none;' +
+                'width: 100%;' +
+                'text-align: left;' +
+                'font-family: var(--beexy-consent-font);' +
+                'transition: background 0.2s ease;' +
+            '}' +
+            '.beexy-consent-category-header:hover { background: ' + pRgba(0.12) + '; }' +
+            '.beexy-consent-category-info {' +
+                'display: flex;' +
+                'align-items: center;' +
+                'gap: 12px;' +
+                'flex: 1;' +
+            '}' +
+            '.beexy-consent-category-name {' +
+                'font-family: var(--beexy-consent-font);' +
+                'font-weight: 600;' +
+                'font-size: 14px;' +
+                'color: var(--beexy-consent-text);' +
+                'letter-spacing: 0.2px;' +
+            '}' +
+            '.beexy-consent-category-controls {' +
+                'display: flex;' +
+                'align-items: center;' +
+                'gap: 14px;' +
+            '}' +
+
+            '.beexy-consent-toggle {' +
+                'position: relative;' +
+                'width: 44px; height: 24px;' +
+                'background: ' + pRgba(0.2) + ';' +
+                'border-radius: 12px;' +
+                'transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);' +
+                'cursor: pointer;' +
+                'flex-shrink: 0;' +
+                'border: 1px solid var(--beexy-consent-border);' +
+            '}' +
+            '.beexy-consent-toggle.active {' +
+                'background: var(--beexy-consent-primary);' +
+                'border-color: ' + pRgba(0.3) + ';' +
+                'box-shadow: 0 0 14px ' + pRgba(0.2) + ';' +
+            '}' +
+            '.beexy-consent-toggle::after {' +
+                'content: "";' +
+                'position: absolute;' +
+                'top: 2px; left: 2px;' +
+                'width: 18px; height: 18px;' +
+                'background: var(--beexy-consent-surface);' +
+                'border-radius: 50%;' +
+                'transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);' +
+                'box-shadow: 0 1px 4px rgba(0,0,0,0.15);' +
+            '}' +
+            '.beexy-consent-toggle.active::after {' +
+                'transform: translateX(20px);' +
+                'background: var(--beexy-consent-btn-text);' +
+            '}' +
+            (cfg.buttonStyle === 'outline'
+                ? '.beexy-consent-toggle.active::after { background: var(--beexy-consent-bg); }'
+                : ''
+            ) +
+            '.beexy-consent-toggle.disabled {' +
+                'opacity: 0.4;' +
+                'cursor: not-allowed;' +
+            '}' +
+
+            '.beexy-consent-expand-icon {' +
+                'width: 8px; height: 8px;' +
+                'border: 1.5px solid var(--beexy-consent-text-dim);' +
+                'border-right: none;' +
+                'border-top: none;' +
+                'transform: rotate(-45deg);' +
+                'transition: transform 0.3s ease;' +
+                'flex-shrink: 0;' +
+            '}' +
+            '.beexy-consent-category.expanded .beexy-consent-expand-icon { transform: rotate(135deg); }' +
+
+            '.beexy-consent-category-content {' +
+                'padding: var(--beexy-consent-d-pad-y-sm) var(--beexy-consent-d-pad-x-sm);' +
+                'background: var(--beexy-consent-bg);' +
+                'border-top: 1px solid var(--beexy-consent-border);' +
+                'display: none;' +
+            '}' +
+            '.beexy-consent-category.expanded .beexy-consent-category-content { display: block; }' +
+            '.beexy-consent-category-content p {' +
+                'font-size: 13px;' +
+                'line-height: 1.6;' +
+                'color: var(--beexy-consent-text-dim);' +
+                'margin: 0;' +
+            '}' +
+
+            '.beexy-consent-cookie-table-wrap {' +
+                'overflow-x: auto;' +
+                'margin-top: 12px;' +
+                '-webkit-overflow-scrolling: touch;' +
+            '}' +
+            '.beexy-consent-cookie-table {' +
+                'width: 100%;' +
+                'border-collapse: collapse;' +
+                'font-size: 12px;' +
+                'font-family: var(--beexy-consent-font);' +
+                'color: var(--beexy-consent-text-dim);' +
+                'line-height: 1.5;' +
+            '}' +
+            '.beexy-consent-cookie-table th {' +
+                'text-align: left;' +
+                'font-weight: 600;' +
+                'font-size: 11px;' +
+                'text-transform: uppercase;' +
+                'letter-spacing: 0.3px;' +
+                'color: var(--beexy-consent-text);' +
+                'padding: 8px 10px;' +
+                'border-bottom: 2px solid var(--beexy-consent-border);' +
+                'white-space: nowrap;' +
+            '}' +
+            '.beexy-consent-cookie-table td {' +
+                'padding: 6px 10px;' +
+                'border-bottom: 1px solid var(--beexy-consent-border);' +
+                'vertical-align: top;' +
+            '}' +
+            '.beexy-consent-cookie-table tr:last-child td {' +
+                'border-bottom: none;' +
+            '}' +
+            '.beexy-consent-cookie-table td:first-child {' +
+                'font-family: monospace, var(--beexy-consent-font);' +
+                'font-size: 11px;' +
+                'white-space: nowrap;' +
+            '}' +
+
+            '.beexy-consent-actions {' +
+                'padding: var(--beexy-consent-d-action-pad-t) var(--beexy-consent-d-pad-x) var(--beexy-consent-d-action-pad-b);' +
+                'display: flex;' +
+                'flex-direction: row-reverse;' +
+                'gap: var(--beexy-consent-d-action-gap);' +
+                'flex-shrink: 0;' +
+            '}' +
+            /* Button base, shared by all styles */
+            '.beexy-consent-btn {' +
+                'flex: 1;' +
+                'padding: var(--beexy-consent-d-btn-pad-y) var(--beexy-consent-d-btn-pad-x);' +
+                'border-radius: var(--beexy-consent-radius-inner);' +
+                'font-family: var(--beexy-consent-font);' +
+                'font-weight: 600;' +
+                'font-size: var(--beexy-consent-d-btn-size);' +
+                'cursor: pointer;' +
+                'transition: all 0.25s ease;' +
+                'letter-spacing: 0.3px;' +
+                'border: var(--beexy-consent-border-width) solid transparent;' +
+            '}' +
+            '.beexy-consent-btn:disabled {' +
+                'opacity: 0.35;' +
+                'cursor: default;' +
+                'pointer-events: none;' +
+            '}' +
+
+            /* Button style variants */
+            (cfg.buttonStyle === 'outline'
+                /* Outline: outline-colored border + text, transparent bg */
+                ? '.beexy-consent-btn {' +
+                      'background: transparent;' +
+                      'color: var(--beexy-consent-btn-outline);' +
+                      'border-color: var(--beexy-consent-btn-outline);' +
+                      'box-shadow: none;' +
+                  '}' +
+                  '.beexy-consent-btn:hover {' +
+                      'background: ' + oRgba(0.15) + ';' +
+                  '}'
+                : cfg.buttonStyle === 'filled-outline'
+                /* Filled-outline: solid primary bg + visible btn-text border */
+                ? '.beexy-consent-btn {' +
+                      'background: var(--beexy-consent-primary);' +
+                      'color: var(--beexy-consent-btn-text);' +
+                      'border-color: var(--beexy-consent-btn-text);' +
+                      'box-shadow: 0 2px 8px ' + pRgba(0.25) + ';' +
+                  '}' +
+                  '.beexy-consent-btn:hover {' +
+                      'background: var(--beexy-consent-primary-dark);' +
+                      'border-color: var(--beexy-consent-btn-text);' +
+                      'box-shadow: 0 4px 12px ' + pRgba(0.35) + ';' +
+                  '}'
+                /* Filled (default): solid primary bg, auto-contrast text */
+                : '.beexy-consent-btn {' +
+                      'background: var(--beexy-consent-primary);' +
+                      'color: var(--beexy-consent-btn-text);' +
+                      'border-color: var(--beexy-consent-primary);' +
+                      'box-shadow: 0 2px 8px ' + pRgba(0.25) + ';' +
+                  '}' +
+                  '.beexy-consent-btn:hover {' +
+                      'background: var(--beexy-consent-primary-dark);' +
+                      'border-color: var(--beexy-consent-primary-dark);' +
+                      'box-shadow: 0 4px 12px ' + pRgba(0.35) + ';' +
+                  '}'
+            ) +
+
+            /* Secondary button: outline style for non-primary actions in opt-out regions.
+               Filled style: use primary color (ghost of the filled button).
+               Outline/filled-outline: use btn-outline color (consistent with overall style). */
+            (btnConfig !== 'full'
+                ? (function () {
+                      var secColor = cfg.buttonStyle === 'filled' ? 'var(--beexy-consent-primary)' : 'var(--beexy-consent-btn-outline)';
+                      var secHover = cfg.buttonStyle === 'filled' ? pRgba(0.1) : oRgba(0.1);
+                      return '.beexy-consent-btn-secondary {' +
+                          'background: transparent !important;' +
+                          'color: ' + secColor + ' !important;' +
+                          'border-color: ' + secColor + ' !important;' +
+                          'box-shadow: none !important;' +
+                      '}' +
+                      '.beexy-consent-btn-secondary:hover {' +
+                          'background: ' + secHover + ' !important;' +
+                      '}';
+                  })()
+                : '') +
+
+            '.beexy-consent-panel { display: none; }' +
+            '.beexy-consent-panel.active {' +
+                'display: flex;' +
+                'flex-direction: column;' +
+                'flex: 1;' +
+                'min-height: 0;' +
+                'overflow: hidden;' +
+            '}' +
+
+            /* Re-open consent widget */
+            '#' + cfg.widgetId + ' {' +
+                'position: fixed;' +
+                'bottom: 12px; ' + cfg.widgetPosition + ': 12px;' +
+                'width: 40px; height: 40px;' +
+                'background: var(--beexy-consent-widget-bg);' +
+                'border: 1px solid var(--beexy-consent-widget-content);' +
+                'border-radius: 50%;' +
+                'cursor: pointer;' +
+                'z-index: 2147483645;' +
+                'display: none;' +
+                'align-items: center;' +
+                'justify-content: center;' +
+                'overflow: visible;' +
+                'transform: translateZ(0);' +
+                'transition: transform 0.2s ease;' +
+            '}' +
+            '#' + cfg.widgetId + ':hover {' +
+                'transform: scale(1.08) translateZ(0);' +
+            '}' +
+            '#' + cfg.widgetId + ' svg {' +
+                'width: 60%; height: 60%;' +
+                'display: block;' +
+                'fill: var(--beexy-consent-widget-content);' +
+            '}' +
+
+            '@media (max-width: 600px) {' +
+                '.beexy-consent {' +
+                    'width: calc(100vw - 16px);' +
+                    'max-height: calc(100dvh - 16px);' +
+                    'border-radius: var(--beexy-consent-radius);' +
+                '}' +
+                '.beexy-consent-content { max-height: none; }' +
+                '.beexy-consent-header, .beexy-consent-content, .beexy-consent-actions, .beexy-consent-dnsmpi {' +
+                    'padding-left: 20px;' +
+                    'padding-right: 20px;' +
+                '}' +
+                '.beexy-consent-tabs { margin-left: 20px; margin-right: 20px; }' +
+                '.beexy-consent-actions {' +
+                    'flex-direction: column;' +
+                    'padding-bottom: 24px;' +
+                '}' +
+                '.beexy-consent-btn { padding: 16px 22px; font-size: 15px; }' +
+                '.beexy-consent-tab { font-size: 12px; padding: 9px 10px; }' +
+                '.beexy-consent-title { font-size: 20px; }' +
+                '.beexy-consent-logo-img { height: 30px; }' +
+                '.beexy-consent-badge-logo { height: 16px; }' +
+                '.beexy-consent-badge-mono { width: 48px; }' +
+                '.beexy-consent-badge-text { font-size: 8px; }' +
+                '#' + cfg.widgetId + ' { bottom: 12px; ' + cfg.widgetPosition + ': 12px; width: 36px; height: 36px; }' +
+            '}' +
+
+            '@media (max-height: 500px) {' +
+                '.beexy-consent-content { max-height: none; padding-top: 16px; padding-bottom: 16px; }' +
+                '.beexy-consent-actions { gap: 6px; padding-top: 8px; padding-bottom: 12px; }' +
+                '.beexy-consent-btn { padding: 8px 16px; font-size: 13px; }' +
+                '.beexy-consent-title { font-size: 16px; margin-bottom: 8px; }' +
+                '.beexy-consent-logo-img { height: 22px; }' +
+                '.beexy-consent-badge-logo { height: 14px; }' +
+                '.beexy-consent-badge-mono { width: 42px; }' +
+                '.beexy-consent-badge-text { font-size: 7px; }' +
+                '.beexy-consent-header { padding-top: 10px; padding-bottom: 6px; }' +
+                '.beexy-consent-tabs { margin-top: 6px; margin-bottom: 4px; }' +
+                '.beexy-consent-tab { padding: 5px 8px; font-size: 12px; }' +
+            '}' +
+
+            '@media (prefers-reduced-motion: reduce) {' +
+                '.beexy-consent { animation: none; }' +
+                '.beexy-consent-toggle, .beexy-consent-toggle::after, .beexy-consent-expand-icon, .beexy-consent-tab, .beexy-consent-btn, .beexy-consent-category, .beexy-consent-category-header, .beexy-consent-close-btn, #' + cfg.widgetId + ' {' +
+                    'transition: none;' +
+                '}' +
+            '}' +
+
+            '.beexy-consent-dnsmpi {' +
+                'text-align: center;' +
+                'padding: 8px 28px 4px;' +
+                'flex-shrink: 0;' +
+            '}' +
+            '.beexy-consent-dnsmpi-btn {' +
+                'background: none;' +
+                'border: none;' +
+                'padding: 0;' +
+                'font-size: 11px;' +
+                'text-decoration: underline;' +
+                'color: var(--beexy-consent-text);' +
+                'opacity: 0.55;' +
+                'cursor: pointer;' +
+                'font-family: var(--beexy-consent-font);' +
+                'line-height: 1.4;' +
+            '}' +
+            '.beexy-consent-dnsmpi-btn:hover { opacity: 1; }' +
+
+            /* Base reset: suppress all browser-default focus rings inside banner.
+               Banner shell itself is included (it carries tabindex="-1" so it
+               can receive programmatic focus on open; without this reset the
+               browser would paint its default outline). */
+            '#' + cfg.bannerId + ',' +
+            '#' + cfg.bannerId + ':focus,' +
+            '#' + cfg.bannerId + ' button,' +
+            '#' + cfg.bannerId + ' a,' +
+            '#' + cfg.bannerId + ' [tabindex="0"],' +
+            '#' + cfg.widgetId + ',' +
+            '#' + cfg.bannerId + ' button:focus,' +
+            '#' + cfg.bannerId + ' a:focus,' +
+            '#' + cfg.bannerId + ' [tabindex="0"]:focus,' +
+            '#' + cfg.widgetId + ':focus {' +
+                'outline: none;' +
+            '}' +
+
+            /* WCAG 2.4.7: Visible focus ring for keyboard navigation only.
+               Outline projects 5px outside the element (3px outline + 2px
+               offset). The banner's overflow-clip-margin lets these rings
+               escape the banner's clip box. position:relative + z-index pulls
+               the focused element above its adjacent siblings so they don't
+               paint over the outermost ~1px of the ring (visible at tight
+               flex gaps between sibling tabs/buttons). Already-positioned
+               elements (widget is position:fixed) ignore the relative. */
+            '#' + cfg.bannerId + ' button:focus-visible,' +
+            '#' + cfg.bannerId + ' .beexy-consent-badge:focus-visible,' +
+            '#' + cfg.bannerId + ' .beexy-consent-toggle:focus-visible,' +
+            '#' + cfg.widgetId + ':focus-visible {' +
+                'outline: 3px solid ' + cfg.primaryColor + ';' +
+                'outline-offset: 2px;' +
+                'position: relative;' +
+                'z-index: 1;' +
+            '}' +
+
+            /* Shell-level focus ring (BACKLOG #20, v1.4.0). Painted on the
+               banner shell whenever .beexy-consent-shell-focused is present. Driven by
+               JS, not by :focus-visible | persists through mouse clicks on
+               inner controls, only removed when the user first presses a
+               navigation key (Tab / Shift+Tab / arrow). At that point JS
+               removes the class and transfers focus to the Consent tab so the
+               inner :focus-visible ring takes over. Offset is 0 so the ring
+               sits flush against the banner's 1px border, reading as a
+               continuous outer edge rather than a floating halo. WCAG 2.4.7
+               only requires visibility; 2.4.13 (AAA) requires >= 2 CSS px
+               thickness + 3:1 contrast | this 3px solid primaryColor clears
+               both regardless of offset. */
+            '#' + cfg.bannerId + '.beexy-consent-shell-focused {' +
+                'outline: 3px solid ' + cfg.primaryColor + ';' +
+                'outline-offset: 0;' +
+            '}' +
+
+            /* Visually-hidden helper for aria-live region (WCAG 4.1.3) */
+            '.beexy-consent-sr-only {' +
+                'position: absolute;' +
+                'width: 1px; height: 1px;' +
+                'padding: 0; overflow: hidden;' +
+                'clip: rect(0,0,0,0);' +
+                'white-space: nowrap; border: 0;' +
+            '}' +
+
+        '</style>';
+
+        /* Build dynamic category HTML for Details panel */
+        var categoriesHTML = '';
+        var categories = globalConfig.categories || [];
+        for (var i = 0; i < categories.length; i++) {
+            var cat = categories[i];
+            var catName = getText('categories.' + cat.key + '.name');
+            var catDesc = getText('categories.' + cat.key + '.description');
+            var isOn = cat.alwaysOn || defaults[cat.key];
+            var toggleClass = isOn ? ' active' : '';
+            var disabledClass = cat.alwaysOn ? ' disabled' : '';
+            var ariaLabel = cat.alwaysOn
+                ? getText('aria.toggleLabelAlwaysOn').replace('{name}', catName)
+                : getText('aria.toggleLabel').replace('{name}', catName);
+
+            categoriesHTML +=
+                '<div class="beexy-consent-category">' +
+                    '<button class="beexy-consent-category-header">' +
+                        '<div class="beexy-consent-category-info">' +
+                            '<div class="beexy-consent-expand-icon"></div>' +
+                            '<span class="beexy-consent-category-name">' + catName + '</span>' +
+                        '</div>' +
+                        '<div class="beexy-consent-category-controls">' +
+                            '<div class="beexy-consent-toggle' + toggleClass + disabledClass + '" data-category="' + cat.key + '" role="switch" aria-checked="' + (isOn ? 'true' : 'false') + '" aria-label="' + ariaLabel + '" tabindex="0"></div>' +
+                        '</div>' +
+                    '</button>' +
+                    '<div class="beexy-consent-category-content">' +
+                        '<p>' + catDesc + '</p>' +
+                        buildCookieTableHTML(getCookiesForCategory(cat.key)) +
+                    '</div>' +
+                '</div>';
+        }
+
+        /* Unknown cookies section (BACKLOG #21). Appended to the
+           Details panel body after the 4 category sections.
+           Returns empty string when residual is zero, so the
+           section is omitted entirely with no empty-state stub. */
+        categoriesHTML += buildUnknownCookiesHTML(unknownCookies);
+
+        /* Close button aria-label */
+        var closeAriaLabel = getText('closeButton.ariaLabel');
+
+        /* WCAG 4.1.3: Screen reader announcement region, visually hidden, updated on showBanner() */
+        html += '<div id="beexyConsentLiveRegion" aria-live="polite" aria-atomic="true" class="beexy-consent-sr-only"></div>';
+
+        /* Re-open consent widget (floating Voxxy logo) */
+        var widgetIcon = cfg.widgetLogoUrl
+            ? '<img style="pointer-events:none;width:70%;height:70%;" src="' + cfg.widgetLogoUrl + '" alt="Manage cookies" />'
+            : '<svg style="pointer-events:none" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10.9,8.8H9.2L8.5,10H7.1l-1.1,1.9l0.3,0.6l-0.9,1.6l0.7,1.1l-0.7,1.1l1,1.6l-0.4,0.6l1.1,1.8h1.4l0.7,1.2h1.7l0.8-1.4v-9.7L10.9,8.8z M9.4,9.3h1.2l0.6,1.1v1.7l-2.3-1.9l0,0L9.4,9.3z M11.2,17.5l-3.7,0.1l3.7-2.1V17.5z M11.2,14.8l-3.7-2.1l3.7,0.1V14.8z M7.4,10.5h1.1l2.3,1.8l-4-0.1l0,0l-0.2-0.3L7.4,10.5z M6.1,14.1l0.7-1.2l0,0l3.8,2.1h-4L6.1,14.1z M6.1,16.3l0.5-0.9h4l-3.8,2.1L6.1,16.3z M6.6,18.4L6.8,18l0,0l4-0.1l-2.3,1.8H7.4L6.6,18.4z M10.6,21H9.4l-0.5-0.9l0,0l2.3-1.9v1.7L10.6,21z"/><path d="M19.1,9.5c-1.1-1.5-2.7-2.6-4.5-3.2V1.7h0.9V0H8.4v1.7h0.9v4.7C7.5,6.9,6,8,4.9,9.5C3.7,11.1,3.1,13,3.1,15c0,5,4.1,9,9,9s9-4.1,9-9C21,13,20.3,11.1,19.1,9.5 M12,23.5c-4.7,0-8.5-3.9-8.5-8.5c0-3.8,2.5-7.1,6.1-8.1h0.2V1.3H8.9V0.5h6.2v0.8h-0.9v5.5h0.2c3.6,1.1,6,4.5,6,8.1C20.5,19.6,16.7,23.5,12,23.5"/><rect x="8.8" y="1.3" width="6.3" height="0.4"/><path d="M17.8,15.2l0.7-1.1l-0.9-1.6l0.3-0.6l-1.1-1.8h-1.4l-0.7-1.2H13l-0.8,1.4V20l0.8,1.4h1.7l0.7-1.2h1.4l1.1-1.8l-0.3-0.6l0.9-1.6L17.8,15.2z M13.6,9.3h0.9v0.9h-0.9V9.3z M13.2,12.1h0.7v0.7h-0.7V12.1z M14.7,15h-1.4v-1.4h1.4V15z M15.3,11.7h-0.9v-0.8h0.9V11.7z M16.1,10.5h0.7v0.7h-0.7V10.5z M16.4,13.4h-0.9v-0.9h0.9V13.4z M17.4,14.2h-0.6v-0.6h0.6V14.2z"/><rect x="15.7" y="8.4" width="1.2" height="1.2"/><rect x="16.7" y="5.9" width="0.9" height="0.9"/><rect x="14.3" y="7.5" width="0.9" height="0.9"/></svg>';
+        html += '<div id="' + cfg.widgetId + '" role="button" tabindex="0" aria-label="' + getText('widget.ariaLabel') + '">' +
+            widgetIcon +
+        '</div>';
+
+        /* Badge: tier-aware logo selection */
+        var showBadge, badgeLogoUrl, badgeMono;
+        if (cfg.agencyLogoUrl) {
+            /* Agency with custom logo, render in text color via mask */
+            showBadge = true;
+            badgeLogoUrl = cfg.agencyLogoUrl;
+            badgeMono = true;
+        } else if (isAgency) {
+            /* Agency without custom logo, hide badge entirely */
+            showBadge = false;
+        } else if (cfg.badgeLogoUrl) {
+            /* Free, colored Voxxy logo (set by template), show as-is */
+            showBadge = true;
+            badgeLogoUrl = cfg.badgeLogoUrl;
+            badgeMono = false;
+        } else {
+            /* Pro, monochrome Voxxy badge, render in text color via mask */
+            showBadge = true;
+            badgeLogoUrl = VOXXY_BADGE_LOGO;
+            badgeMono = true;
+        }
+
+        /* Overlay */
+        html += '<div id="' + cfg.overlayId + '"></div>';
+
+        /* Banner */
+        html += '<div id="' + cfg.bannerId + '" class="beexy-consent" role="dialog" aria-modal="true" aria-labelledby="beexyConsentTitle" tabindex="-1" style="display:none;">' +
+
+            /* Header */
+            '<div class="beexy-consent-header">' +
+                (cfg.logoUrl ? '<img class="beexy-consent-logo-img" src="' + cfg.logoUrl + '" alt="Logo" />' : '') +
+                '<div class="beexy-consent-header-right">' +
+                    (showBadge
+                        ? '<a class="beexy-consent-badge" href="' + (cfg.agencyUrl || VOXXY_URL) + '" target="_blank" rel="noopener noreferrer" aria-label="Privacy by ' + (cfg.agencyUrl ? cfg.agencyUrl.replace(/^https?:\/\//, '') : 'Voxxy Creative Lab') + '">' +
+                              '<span class="beexy-consent-badge-text">Privacy by</span>' +
+                              (badgeMono
+                                  ? '<span class="beexy-consent-badge-logo beexy-consent-badge-mono" aria-hidden="true" style="-webkit-mask-image:url(' + badgeLogoUrl + ');mask-image:url(' + badgeLogoUrl + ');"></span>'
+                                  : '<img class="beexy-consent-badge-logo" src="' + badgeLogoUrl + '" alt="" />') +
+                          '</a>'
+                        : '') +
+                    (model.showCloseButton ? '<button class="beexy-consent-close-btn" id="beexyConsentCloseBtn" aria-label="' + closeAriaLabel + '" title="' + closeAriaLabel + '"></button>' : '') +
+                '</div>' +
+            '</div>' +
+
+            /* Tabs */
+            '<div class="beexy-consent-tabs" role="tablist">' +
+                '<button class="beexy-consent-tab active" role="tab" data-tab="consent" aria-selected="true" aria-controls="consentPanel">' + getText('tabs.consent') + '</button>' +
+                '<button class="beexy-consent-tab" role="tab" data-tab="details" aria-selected="false" aria-controls="detailsPanel">' + getText('tabs.details') + '</button>' +
+                '<button class="beexy-consent-tab" role="tab" data-tab="about" aria-selected="false" aria-controls="aboutPanel">' + getText('tabs.about') + '</button>' +
+            '</div>' +
+
+            /* ── Consent Panel ── */
+            '<div id="consentPanel" class="beexy-consent-panel active" role="tabpanel">' +
+                '<div class="beexy-consent-content">' +
+                    '<h5 class="beexy-consent-title" id="beexyConsentTitle">' + getText('banner.title') + '</h5>' +
+                    '<p class="beexy-consent-text">' +
+                        getText('banner.description') +
+                        privacyLink +
+                    '</p>' +
+                '</div>' +
+                '<div class="beexy-consent-actions">' +
+                    consentButtons +
+                '</div>' +
+                getDnsmpiLinkHtml() +
+            '</div>' +
+
+            /* ── Details Panel (dynamic categories) ── */
+            '<div id="detailsPanel" class="beexy-consent-panel" role="tabpanel">' +
+                '<div class="beexy-consent-content">' +
+                    categoriesHTML +
+                '</div>' +
+                '<div class="beexy-consent-actions">' +
+                    (getModelName() === 'opt-in'
+                        ? '<button class="beexy-consent-btn beexy-consent-accept-btn">' + getText('buttons.allowAll') + '</button>' +
+                          '<button id="beexyConsentAllowSelBtn" class="beexy-consent-btn" disabled>' + getText('buttons.allowSelection') + '</button>' +
+                          '<button class="beexy-consent-btn beexy-consent-deny-btn">' + getText('buttons.denyAll') + '</button>'
+                        : '<button class="beexy-consent-btn beexy-consent-accept-btn">' + getText('buttons.allowAll') + '</button>' +
+                          '<button id="beexyConsentDenySelBtn" class="beexy-consent-btn beexy-consent-btn-secondary">' + getText('buttons.denyAll') + '</button>'
+                    ) +
+                '</div>' +
+                getDnsmpiLinkHtml() +
+            '</div>' +
+
+            /* ── About Panel ── */
+            '<div id="aboutPanel" class="beexy-consent-panel" role="tabpanel">' +
+                '<div class="beexy-consent-content">' +
+                    '<h5 class="beexy-consent-title">' + getText('about.title') + '</h5>' +
+                    featuresLinkHtml +
+                    '<p class="beexy-consent-text">' +
+                        getText('about.description') +
+                    '</p>' +
+                    controllerText +
+                '</div>' +
+                '<div class="beexy-consent-actions">' +
+                    consentButtons +
+                '</div>' +
+                getDnsmpiLinkHtml() +
+            '</div>' +
+
+        '</div>';
+
+        return html;
+    }
+
+    /* ═══════════════════════════════════════════════
+       INITIALIZE BANNER & BIND EVENTS
+       All events use addEventListener (CSP-safe)
+       ═══════════════════════════════════════════════ */
+
+    function initializeBanner() {
+        var body = document.body;
+        if (!body) { setTimeout(initializeBanner, 100); return; }
+        if (document.getElementById(cfg.bannerId)) return;
+
+        var ready = 0;
+        var needed = 2; // config + region; may become 3 if lang file needed
+        function onReady() {
+            ready++;
+            if (ready < needed) return;
+            /* Config, region, and language (if needed) are all resolved, proceed */
+
+            if (!validateConfig(globalConfig)) {
+                console.warn('[Beexy Consent] Invalid config, using fallback');
+                globalConfig = FALLBACK_CONFIG;
+            }
+
+            /* Fire correct consent defaults based on region config.
+               Standalone mode: single consent,default call (no pessimistic-then-update).
+               GTM mode: defaults already set by template (all denied + wait_for_update).
+               Banner only fires consent,update for non-strict regions (opt-out/gpc). */
+            var defaults = getEffectiveDefaults();
+            if (!window.beexyConsentGtmManaged) {
+                var defaultState = buildConsentModeState(defaults);
+                defaultState.wait_for_update = window.beexyConsentWaitForUpdate || (globalConfig.consentMode && globalConfig.consentMode.waitForUpdate) || 500;
+                gtag('consent', 'default', defaultState);
+            } else {
+                var existingCookie = readCookie(cfg.cookieName);
+                if (!existingCookie) {
+                    var needsUpdate = defaults.preferences || defaults.analytics || defaults.marketing;
+                    if (needsUpdate) {
+                        updateConsentMode(defaults);
+                    }
+                }
+            }
+            consentState.permissions = defaults;
+
+            /* ── "none" model: auto-grant silently, no UI ── */
+            var mode = getMode();
+            if (mode.showBanner === false) {
+                var allGranted = { necessary: true, preferences: true, analytics: true, marketing: true };
+                var existingNone = readCookie(cfg.cookieName);
+                if (existingNone) {
+                    try {
+                        var parsedNone = JSON.parse(existingNone);
+                        if (parsedNone.version === consentState.version) {
+                            consentState = parsedNone;
+                            window.beexyConsent = consentState;
+                            sendConsentEvents('existing', parsedNone.permissions);
+                            return;
+                        }
+                    } catch (e) { /* re-grant below */ }
+                }
+                consentState.permissions = allGranted;
+                consentState.explicitConsent = false;
+                window.beexyConsent = consentState;
+                var autoGrantExpiry = getConsentExpiry();
+                setCookie(cfg.cookieName, JSON.stringify({
+                    version: consentState.version,
+                    permissions: allGranted,
+                    explicitConsent: false,
+                    timestamp: new Date().toISOString(),
+                    region: cfg.region,
+                    gpcApplied: false
+                }), autoGrantExpiry);
+                setCookie(GEO_COOKIE_NAME, cfg.region, autoGrantExpiry);
+                sendConsentEvents('auto-grant', allGranted);
+                return;
+            }
+
+            /* Detect known services for cookie declaration tables */
+            detectKnownServices();
+
+            /* Compute unknown-cookies residual once (BACKLOG #21). Runs
+               after detectKnownServices so the same scan timing covers
+               both detection paths. See helper rationale at the
+               UNKNOWN COOKIES block near buildUnknownCookiesHTML. */
+            var knownPatterns = flattenKnownCookieNames(globalConfig);
+            var actualCookies = parseActualCookies();
+            unknownCookies = getUnknownCookies(actualCookies, knownPatterns, customCookies);
+
+            /* Owner-facing diagnostic: when enableDebugLogging is on,
+               tell the site owner exactly which GTM template fields
+               they need to populate to classify these cookies. Skipped
+               on zero residual or when debug is off, so production
+               sites stay silent for normal visitors. BACKLOG #21. */
+            if (window.beexyConsentEnableDebugLogging && unknownCookies.length > 0) {
+                console.groupCollapsed('[Beexy Consent] ' + unknownCookies.length + ' unknown cookie(s) detected');
+                console.log('These cookies are not classified in the auto-detection database.');
+                console.log('Declare them in: GTM Template > Cookie Declarations > Additional cookies');
+                console.log('Per row, fill 5 fields:');
+                console.log('  Cookie name    (matches one of the names below)');
+                console.log('  Category       (one of: necessary, preferences, analytics, marketing)');
+                console.log('  Purpose        (free text)');
+                console.log("  Duration       (free text, e.g. '1 year' or 'Session')");
+                console.log("  Provider       (free text, e.g. 'Acme Inc')");
+                console.table(unknownCookies.map(function (c) {
+                    return { name: c.name, value: (c.value || '').slice(0, 60) };
+                }));
+                console.groupEnd();
+            }
+
+            var container = document.createElement('div');
+            container.id = cfg.containerId;
+            container.innerHTML = createBannerHTML();
+            body.appendChild(container);
+
+            /* Apply density preset tokens on the container element. Custom
+               properties cascade to all .beexy-consent-* descendants and override
+               the spacious defaults declared at :root in the CSS. */
+            applyDensity(container, bannerDensity);
+
+            /* ── Close button ── */
+            var closeBtn = document.getElementById('beexyConsentCloseBtn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function () { handleConsent('accept-all'); });
+            }
+
+            /* ── Tab buttons ── */
+            var tabBtns = container.querySelectorAll('.beexy-consent-tab');
+            for (var t = 0; t < tabBtns.length; t++) {
+                tabBtns[t].addEventListener('click', (function (btn) {
+                    return function () {
+                        switchTab(btn.getAttribute('data-tab'));
+                        for (var a = 0; a < tabBtns.length; a++) {
+                            tabBtns[a].setAttribute('aria-selected', tabBtns[a] === btn ? 'true' : 'false');
+                        }
+                    };
+                })(tabBtns[t]));
+            }
+
+            /* ── Deny all buttons ── */
+            var denyBtns = container.querySelectorAll('.beexy-consent-deny-btn');
+            for (var d = 0; d < denyBtns.length; d++) {
+                denyBtns[d].addEventListener('click', function () { handleConsent('deny-all'); });
+            }
+
+            /* ── Accept all buttons ── */
+            var acceptBtns = container.querySelectorAll('.beexy-consent-accept-btn');
+            for (var a = 0; a < acceptBtns.length; a++) {
+                acceptBtns[a].addEventListener('click', function () { handleConsent('accept-all'); });
+            }
+
+            /* ── Customize buttons ── */
+            var customBtns = container.querySelectorAll('.beexy-consent-customize-btn');
+            for (var c = 0; c < customBtns.length; c++) {
+                customBtns[c].addEventListener('click', function () { switchTab('details'); });
+            }
+
+            /* ── Category headers (expand/collapse) ──
+               For headers WITH a toggle: left-of-name click expands;
+               right-of-name click flips the toggle. For headers WITHOUT a
+               toggle (unknown-cookies dropdown, BACKLOG #21), any click
+               anywhere on the header expands/collapses. */
+            var headers = container.querySelectorAll('.beexy-consent-category-header');
+            for (var h = 0; h < headers.length; h++) {
+                headers[h].addEventListener('click', function (e) {
+                    if (e.target.classList.contains('beexy-consent-toggle')) return;
+                    var toggle = this.querySelector('.beexy-consent-toggle');
+                    if (!toggle) {
+                        toggleCategory(this);
+                        return;
+                    }
+                    var nameSpan = this.querySelector('.beexy-consent-category-name');
+                    var nameRect = nameSpan.getBoundingClientRect();
+                    if (e.clientX <= nameRect.right) {
+                        toggleCategory(this);
+                    } else if (!toggle.classList.contains('disabled')) {
+                        toggleSwitch(toggle);
+                    }
+                });
+            }
+
+            /* ── Toggle switches ── */
+            var toggles = container.querySelectorAll('.beexy-consent-toggle');
+            for (var g = 0; g < toggles.length; g++) {
+                toggles[g].addEventListener('click', function (e) {
+                    toggleSwitch(this, e);
+                });
+                toggles[g].addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleSwitch(this, e);
+                    }
+                });
+            }
+
+            /* ── Details panel dynamic buttons ── */
+            var allowSelBtn = document.getElementById('beexyConsentAllowSelBtn');
+            if (allowSelBtn) {
+                allowSelBtn.addEventListener('click', function () { handleConsent('selected'); });
+            }
+            var denySelBtn = document.getElementById('beexyConsentDenySelBtn');
+            if (denySelBtn) {
+                denySelBtn._consentType = 'deny-all';
+                denySelBtn.addEventListener('click', function () {
+                    handleConsent(this._consentType || 'deny-all');
+                });
+            }
+
+            /* ── DNSMPI buttons ── */
+            var dnsmptBtns = container.querySelectorAll('.beexy-consent-dnsmpi-btn');
+            for (var ns = 0; ns < dnsmptBtns.length; ns++) {
+                dnsmptBtns[ns].addEventListener('click', function () { handleConsent('dnsmpi'); });
+            }
+
+            /* ── Re-open widget ── */
+            var widget = document.getElementById(cfg.widgetId);
+            if (widget) {
+                widget.addEventListener('click', function () {
+                    showBanner();
+                    switchTab('consent');
+                });
+                widget.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        showBanner();
+                        switchTab('consent');
+                    }
+                });
+            }
+
+            /* ── Keyboard accessibility (WCAG 2.1.1, 2.1.2, 2.4.3) ── */
+            document.addEventListener('keydown', function (e) {
+                var banner = document.getElementById(cfg.bannerId);
+                if (!banner || banner.style.display === 'none') return;
+
+                /* BACKLOG #20: first keyboard interaction transfers focus from
+                   the banner shell to the first focusable inner control.
+                   Triggered by Tab / Shift+Tab / arrows / Enter / Space. The
+                   shell-focused class is removed so the inner :focus-visible
+                   ring takes over. Escape is intentionally excluded (it closes
+                   the banner via the existing handler, no transfer needed). */
+                if (banner.classList.contains('beexy-consent-shell-focused')) {
+                    var isNavKey = e.key === 'Tab' || e.key === 'ArrowLeft' ||
+                                   e.key === 'ArrowRight' || e.key === 'ArrowUp' ||
+                                   e.key === 'ArrowDown' || e.key === 'Enter' ||
+                                   e.key === ' ';
+                    if (isNavKey) {
+                        banner.classList.remove('beexy-consent-shell-focused');
+                        var consentTab = banner.querySelector('.beexy-consent-tab[data-tab="consent"]');
+                        if (consentTab) {
+                            e.preventDefault();
+                            consentTab.focus({ focusVisible: true });
+                            return;
+                        }
+                    }
+                }
+
+                /* Arrow keys: navigate between tabs (ARIA tablist pattern) */
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    var focused = document.activeElement;
+                    if (focused && focused.getAttribute('role') === 'tab') {
+                        var tabBtnsAK = container.querySelectorAll('.beexy-consent-tab');
+                        var currentIdx = -1;
+                        for (var ti = 0; ti < tabBtnsAK.length; ti++) {
+                            if (tabBtnsAK[ti] === focused) { currentIdx = ti; break; }
+                        }
+                        if (currentIdx !== -1) {
+                            var nextIdx = e.key === 'ArrowRight'
+                                ? (currentIdx + 1) % tabBtnsAK.length
+                                : (currentIdx - 1 + tabBtnsAK.length) % tabBtnsAK.length;
+                            e.preventDefault();
+                            tabBtnsAK[nextIdx].focus({ focusVisible: true });
+                            tabBtnsAK[nextIdx].click();
+                        }
+                    }
+                    return;
+                }
+
+                /* Escape: close banner (only when model permits closing without a choice) */
+                if (e.key === 'Escape') {
+                    if (getMode().showCloseButton) {
+                        e.preventDefault();
+                        handleConsent('accept-all');
+                    }
+                    return;
+                }
+
+                /* Tab / Shift+Tab: focus trap, cycle only within banner */
+                if (e.key !== 'Tab') return;
+                var focusable = banner.querySelectorAll('button:not([disabled]), [tabindex="0"]');
+                if (!focusable.length) return;
+                var first = focusable[0];
+                var last = focusable[focusable.length - 1];
+                if (e.shiftKey) {
+                    if (document.activeElement === first) {
+                        e.preventDefault();
+                        last.focus({ focusVisible: true });
+                    }
+                } else {
+                    if (document.activeElement === last) {
+                        e.preventDefault();
+                        first.focus({ focusVisible: true });
+                    }
+                }
+            });
+
+            /* Initialize toggle button text based on default states */
+            updateDetailsBtns();
+
+            /* Check for existing consent or show banner */
+            checkExistingConsent();
+        } /* end onReady */
+
+        /* Config loads first, then triggers language + cookie-DB loading as siblings.
+           Both are parallel-callbacks via the needed-counter ready gate (NOT Promise.all
+           per plan v2 R3, preserves existing battle-tested orchestration).
+           R2 guard: skip tier fetch when inline-config (window.beexyConsentConfig) has already
+           populated knownCookies, those clients hand-rolled their config and we don't
+           want to overwrite it from CDN. */
+        function onConfigLoaded() {
+            resolvedLang = resolveLanguage();
+            if (resolvedLang !== 'en') {
+                needed++; // extra ready signal for language file
+                loadLanguage(resolvedLang, onReady);
+            }
+            if (!globalConfig.knownCookies || globalConfig.knownCookies.length === 0) {
+                needed++; // extra ready signal for cookie database tier file
+                loadCookieDatabase(cookieDatabaseTier, onReady);
+            }
+            onReady(); // signal config done
+        }
+
+        loadConfig(onConfigLoaded);
+        resolveRegion(onReady);
+    }
+
+    /* ═══════════════════════════════════════════════
+       PUBLIC API
+       ═══════════════════════════════════════════════ */
+
+    window.beexyConsentAPI = {
+        showBanner: function () {
+            showBanner();
+            switchTab('consent');
+        },
+        getConsent: function () {
+            return window.beexyConsent ? window.beexyConsent.permissions : null;
+        },
+        getRegion: function () {
+            return cfg.region;
+        },
+        getLanguage: function () {
+            return resolvedLang;
+        },
+        getMode: function () {
+            return getModelName();
+        },
+        isGpcEnabled: isGpcEnabled,
+        updateConsent: function (permissions) {
+            if (permissions && typeof permissions === 'object') {
+                permissions.necessary = true;
+                consentState.permissions = Object.assign({}, consentState.permissions, permissions);
+                window.beexyConsent = consentState;
+                var apiExpiry = getConsentExpiry();
+                setCookie(cfg.cookieName, JSON.stringify({
+                    version: consentState.version,
+                    permissions: consentState.permissions,
+                    explicitConsent: true,
+                    timestamp: new Date().toISOString(),
+                    region: cfg.region,
+                    gpcApplied: isGpcEnabled()
+                }), apiExpiry);
+                setCookie(GEO_COOKIE_NAME, cfg.region, apiExpiry);
+                sendConsentEvents('api_update', consentState.permissions);
+                logConsent('api_update', consentState.permissions);
+            }
+        },
+        resetConsent: function () {
+            setCookie(cfg.cookieName, '', -1);
+            showBanner();
+            switchTab('consent');
+            hideWidget();
+        }
+    };
+
+    /* ═══════════════════════════════════════════════
+       INIT
+       ═══════════════════════════════════════════════ */
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeBanner);
+    } else {
+        initializeBanner();
+    }
+
+})();

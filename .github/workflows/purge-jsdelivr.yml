@@ -1,0 +1,16 @@
+name: Purge jsDelivr cache
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Purge jsDelivr for tagged release
+        run: |
+          curl -sS "https://purge.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/beexy-consent.js" || true
+          curl -sS "https://purge.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/beexy-global.json" || true
+          echo "Purge requested for tagged release."
