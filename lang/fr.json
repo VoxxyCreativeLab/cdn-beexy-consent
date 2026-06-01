@@ -60,6 +60,10 @@
     "provider": "Fournisseur",
     "value": "Valeur"
   },
+  "selfCookies": {
+    "beexy_consent": "Enregistre vos préférences de consentement aux cookies",
+    "beexy_geo": "Mémorise votre région détectée"
+  },
   "duration": {
     "units": {
       "second": { "one": "seconde", "other": "secondes" },

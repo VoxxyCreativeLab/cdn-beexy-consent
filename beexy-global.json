@@ -308,6 +308,10 @@
         "provider": "Provider",
         "value": "Value"
       },
+      "selfCookies": {
+        "beexy_consent": "Stores your cookie consent preferences",
+        "beexy_geo": "Caches your detected geographic region"
+      },
       "unknownCookies": {
         "title": "Unknown cookies",
         "intro": "These cookies were detected on the page but their purpose has not been classified. Contact the site owner if you want details."

@@ -60,6 +60,10 @@
     "provider": "Aanbieder",
     "value": "Waarde"
   },
+  "selfCookies": {
+    "beexy_consent": "Slaat uw cookietoestemmingsvoorkeuren op",
+    "beexy_geo": "Onthoudt uw gedetecteerde regio"
+  },
   "duration": {
     "units": {
       "second": { "one": "seconde", "other": "seconden" },
