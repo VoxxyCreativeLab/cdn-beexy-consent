@@ -60,6 +60,52 @@
     "provider": "Ponudnik",
     "value": "Vrednost"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekunda",
+        "other": "sekund"
+      },
+      "minute": {
+        "one": "minuta",
+        "other": "minut"
+      },
+      "hour": {
+        "one": "ura",
+        "other": "ur"
+      },
+      "day": {
+        "one": "dan",
+        "other": "dni"
+      },
+      "week": {
+        "one": "teden",
+        "other": "tednov"
+      },
+      "month": {
+        "one": "mesec",
+        "other": "mesecev"
+      },
+      "year": {
+        "one": "leto",
+        "other": "let"
+      }
+    },
+    "keywords": {
+      "session": "Seja",
+      "sessions": "Seja",
+      "session cookie": "Seja",
+      "persistent": "Trajno",
+      "permanent": "Trajno",
+      "forever": "Trajno",
+      "unlimited": "Neomejeno",
+      "no expiration": "Brez poteka",
+      "local storage": "Lokalna shramba",
+      "various": "Razno",
+      "varies": "Spremenljivo",
+      "unknown": "Neznano"
+    }
+  },
   "unknownCookies": {
     "title": "Neznani piškotki",
     "intro": "Ti piškotki so bili na strani zaznani, vendar njihov namen ni razvrščen. Za podrobnosti se obrnite na lastnika spletnega mesta."

@@ -60,6 +60,52 @@
     "provider": "Teenusepakkuja",
     "value": "Väärtus"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekund",
+        "other": "sekundit"
+      },
+      "minute": {
+        "one": "minut",
+        "other": "minutit"
+      },
+      "hour": {
+        "one": "tund",
+        "other": "tundi"
+      },
+      "day": {
+        "one": "päev",
+        "other": "päeva"
+      },
+      "week": {
+        "one": "nädal",
+        "other": "nädalat"
+      },
+      "month": {
+        "one": "kuu",
+        "other": "kuud"
+      },
+      "year": {
+        "one": "aasta",
+        "other": "aastat"
+      }
+    },
+    "keywords": {
+      "session": "Seanss",
+      "sessions": "Seanss",
+      "session cookie": "Seanss",
+      "persistent": "Püsiv",
+      "permanent": "Püsiv",
+      "forever": "Püsiv",
+      "unlimited": "Piiramatu",
+      "no expiration": "Aegumiseta",
+      "local storage": "Kohalik salvestusruum",
+      "various": "Erinev",
+      "varies": "Erinev",
+      "unknown": "Teadmata"
+    }
+  },
   "unknownCookies": {
     "title": "Tundmatud küpsised",
     "intro": "Need küpsised tuvastati lehel, kuid nende eesmärki pole klassifitseeritud. Üksikasjadeks võtke ühendust saidi omanikuga."

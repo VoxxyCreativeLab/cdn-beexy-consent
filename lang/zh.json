@@ -60,6 +60,52 @@
     "provider": "提供方",
     "value": "值"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "秒",
+        "other": "秒"
+      },
+      "minute": {
+        "one": "分钟",
+        "other": "分钟"
+      },
+      "hour": {
+        "one": "小时",
+        "other": "小时"
+      },
+      "day": {
+        "one": "天",
+        "other": "天"
+      },
+      "week": {
+        "one": "周",
+        "other": "周"
+      },
+      "month": {
+        "one": "个月",
+        "other": "个月"
+      },
+      "year": {
+        "one": "年",
+        "other": "年"
+      }
+    },
+    "keywords": {
+      "session": "会话",
+      "sessions": "会话",
+      "session cookie": "会话",
+      "persistent": "持久",
+      "permanent": "永久",
+      "forever": "永久",
+      "unlimited": "无限制",
+      "no expiration": "永不过期",
+      "local storage": "本地存储",
+      "various": "多种",
+      "varies": "不定",
+      "unknown": "未知"
+    }
+  },
   "unknownCookies": {
     "title": "未知 Cookie",
     "intro": "已在页面上检测到这些 Cookie，但其用途尚未分类。如需了解详情，请联系网站所有者。"

@@ -60,6 +60,52 @@
     "provider": "Tarjoaja",
     "value": "Arvo"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekunti",
+        "other": "sekuntia"
+      },
+      "minute": {
+        "one": "minuutti",
+        "other": "minuuttia"
+      },
+      "hour": {
+        "one": "tunti",
+        "other": "tuntia"
+      },
+      "day": {
+        "one": "päivä",
+        "other": "päivää"
+      },
+      "week": {
+        "one": "viikko",
+        "other": "viikkoa"
+      },
+      "month": {
+        "one": "kuukausi",
+        "other": "kuukautta"
+      },
+      "year": {
+        "one": "vuosi",
+        "other": "vuotta"
+      }
+    },
+    "keywords": {
+      "session": "Istunto",
+      "sessions": "Istunto",
+      "session cookie": "Istunto",
+      "persistent": "Pysyvä",
+      "permanent": "Pysyvä",
+      "forever": "Pysyvä",
+      "unlimited": "Rajaton",
+      "no expiration": "Ei vanhenemista",
+      "local storage": "Paikallinen tallennustila",
+      "various": "Vaihteleva",
+      "varies": "Vaihtelee",
+      "unknown": "Tuntematon"
+    }
+  },
   "unknownCookies": {
     "title": "Tuntemattomat evästeet",
     "intro": "Nämä evästeet havaittiin sivulla, mutta niiden tarkoitusta ei ole luokiteltu. Ota yhteyttä sivuston omistajaan, jos haluat lisätietoja."

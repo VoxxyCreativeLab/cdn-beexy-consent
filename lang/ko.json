@@ -60,6 +60,52 @@
     "provider": "제공자",
     "value": "값"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "초",
+        "other": "초"
+      },
+      "minute": {
+        "one": "분",
+        "other": "분"
+      },
+      "hour": {
+        "one": "시간",
+        "other": "시간"
+      },
+      "day": {
+        "one": "일",
+        "other": "일"
+      },
+      "week": {
+        "one": "주",
+        "other": "주"
+      },
+      "month": {
+        "one": "개월",
+        "other": "개월"
+      },
+      "year": {
+        "one": "년",
+        "other": "년"
+      }
+    },
+    "keywords": {
+      "session": "세션",
+      "sessions": "세션",
+      "session cookie": "세션",
+      "persistent": "영구",
+      "permanent": "영구",
+      "forever": "영구",
+      "unlimited": "무제한",
+      "no expiration": "만료 없음",
+      "local storage": "로컬 저장소",
+      "various": "다양함",
+      "varies": "다양함",
+      "unknown": "알 수 없음"
+    }
+  },
   "unknownCookies": {
     "title": "알 수 없는 쿠키",
     "intro": "이 쿠키들이 페이지에서 감지되었지만 그 목적은 분류되지 않았습니다. 자세한 내용이 필요하시면 사이트 소유자에게 문의하세요."

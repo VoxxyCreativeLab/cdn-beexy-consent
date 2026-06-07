@@ -60,6 +60,52 @@
     "provider": "Tiekėjas",
     "value": "Reikšmė"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekundė",
+        "other": "sekundžių"
+      },
+      "minute": {
+        "one": "minutė",
+        "other": "minučių"
+      },
+      "hour": {
+        "one": "valanda",
+        "other": "valandų"
+      },
+      "day": {
+        "one": "diena",
+        "other": "dienų"
+      },
+      "week": {
+        "one": "savaitė",
+        "other": "savaičių"
+      },
+      "month": {
+        "one": "mėnuo",
+        "other": "mėnesių"
+      },
+      "year": {
+        "one": "metai",
+        "other": "metų"
+      }
+    },
+    "keywords": {
+      "session": "Sesija",
+      "sessions": "Sesija",
+      "session cookie": "Sesija",
+      "persistent": "Nuolatinis",
+      "permanent": "Nuolatinis",
+      "forever": "Nuolatinis",
+      "unlimited": "Neribotas",
+      "no expiration": "Be galiojimo pabaigos",
+      "local storage": "Vietinė saugykla",
+      "various": "Įvairūs",
+      "varies": "Kinta",
+      "unknown": "Nežinoma"
+    }
+  },
   "unknownCookies": {
     "title": "Nežinomi slapukai",
     "intro": "Šie slapukai aptikti puslapyje, tačiau jų paskirtis nebuvo klasifikuota. Jei norite išsamesnės informacijos, susisiekite su svetainės savininku."

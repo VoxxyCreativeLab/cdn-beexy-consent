@@ -60,6 +60,52 @@
     "provider": "提供元",
     "value": "値"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "秒",
+        "other": "秒"
+      },
+      "minute": {
+        "one": "分",
+        "other": "分"
+      },
+      "hour": {
+        "one": "時間",
+        "other": "時間"
+      },
+      "day": {
+        "one": "日",
+        "other": "日"
+      },
+      "week": {
+        "one": "週間",
+        "other": "週間"
+      },
+      "month": {
+        "one": "か月",
+        "other": "か月"
+      },
+      "year": {
+        "one": "年",
+        "other": "年"
+      }
+    },
+    "keywords": {
+      "session": "セッション",
+      "sessions": "セッション",
+      "session cookie": "セッション",
+      "persistent": "永続",
+      "permanent": "永続",
+      "forever": "永続",
+      "unlimited": "無制限",
+      "no expiration": "有効期限なし",
+      "local storage": "ローカルストレージ",
+      "various": "各種",
+      "varies": "可変",
+      "unknown": "不明"
+    }
+  },
   "unknownCookies": {
     "title": "未分類のクッキー",
     "intro": "これらのクッキーはページ上で検出されましたが、その目的は分類されていません。詳細が必要な場合は、サイト所有者にお問い合わせください。"

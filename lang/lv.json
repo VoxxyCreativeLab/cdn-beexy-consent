@@ -60,6 +60,52 @@
     "provider": "Pakalpojumu sniedzējs",
     "value": "Vērtība"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekunde",
+        "other": "sekundes"
+      },
+      "minute": {
+        "one": "minūte",
+        "other": "minūtes"
+      },
+      "hour": {
+        "one": "stunda",
+        "other": "stundas"
+      },
+      "day": {
+        "one": "diena",
+        "other": "dienas"
+      },
+      "week": {
+        "one": "nedēļa",
+        "other": "nedēļas"
+      },
+      "month": {
+        "one": "mēnesis",
+        "other": "mēneši"
+      },
+      "year": {
+        "one": "gads",
+        "other": "gadi"
+      }
+    },
+    "keywords": {
+      "session": "Sesija",
+      "sessions": "Sesija",
+      "session cookie": "Sesija",
+      "persistent": "Pastāvīga",
+      "permanent": "Pastāvīga",
+      "forever": "Pastāvīga",
+      "unlimited": "Neierobežota",
+      "no expiration": "Bez derīguma termiņa",
+      "local storage": "Lokālā krātuve",
+      "various": "Dažādi",
+      "varies": "Mainīgs",
+      "unknown": "Nezināms"
+    }
+  },
   "unknownCookies": {
     "title": "Nezināmas sīkdatnes",
     "intro": "Šīs sīkdatnes tika atklātas lapā, taču to mērķis nav klasificēts. Ja vēlaties uzzināt vairāk, sazinieties ar vietnes īpašnieku."

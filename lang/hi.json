@@ -60,6 +60,52 @@
     "provider": "प्रदाता",
     "value": "मान"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "सेकंड",
+        "other": "सेकंड"
+      },
+      "minute": {
+        "one": "मिनट",
+        "other": "मिनट"
+      },
+      "hour": {
+        "one": "घंटा",
+        "other": "घंटे"
+      },
+      "day": {
+        "one": "दिन",
+        "other": "दिन"
+      },
+      "week": {
+        "one": "सप्ताह",
+        "other": "सप्ताह"
+      },
+      "month": {
+        "one": "महीना",
+        "other": "महीने"
+      },
+      "year": {
+        "one": "वर्ष",
+        "other": "वर्ष"
+      }
+    },
+    "keywords": {
+      "session": "सत्र",
+      "sessions": "सत्र",
+      "session cookie": "सत्र",
+      "persistent": "स्थायी",
+      "permanent": "स्थायी",
+      "forever": "स्थायी",
+      "unlimited": "असीमित",
+      "no expiration": "कोई समाप्ति नहीं",
+      "local storage": "लोकल स्टोरेज",
+      "various": "विविध",
+      "varies": "परिवर्तनशील",
+      "unknown": "अज्ञात"
+    }
+  },
   "unknownCookies": {
     "title": "अज्ञात कुकीज़",
     "intro": "ये कुकीज़ पृष्ठ पर पाई गईं लेकिन उनके उद्देश्य को वर्गीकृत नहीं किया गया है। यदि आपको विवरण चाहिए तो साइट के स्वामी से संपर्क करें।"

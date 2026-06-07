@@ -60,6 +60,52 @@
     "provider": "Fornecedor",
     "value": "Valor"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "segundo",
+        "other": "segundos"
+      },
+      "minute": {
+        "one": "minuto",
+        "other": "minutos"
+      },
+      "hour": {
+        "one": "hora",
+        "other": "horas"
+      },
+      "day": {
+        "one": "dia",
+        "other": "dias"
+      },
+      "week": {
+        "one": "semana",
+        "other": "semanas"
+      },
+      "month": {
+        "one": "mês",
+        "other": "meses"
+      },
+      "year": {
+        "one": "ano",
+        "other": "anos"
+      }
+    },
+    "keywords": {
+      "session": "Sessão",
+      "sessions": "Sessão",
+      "session cookie": "Sessão",
+      "persistent": "Persistente",
+      "permanent": "Permanente",
+      "forever": "Permanente",
+      "unlimited": "Ilimitado",
+      "no expiration": "Sem expiração",
+      "local storage": "Armazenamento local",
+      "various": "Vários",
+      "varies": "Variável",
+      "unknown": "Desconhecido"
+    }
+  },
   "unknownCookies": {
     "title": "Cookies desconhecidos",
     "intro": "Estes cookies foram detetados na página, mas a sua finalidade não foi classificada. Contacte o proprietário do site se quiser mais detalhes."

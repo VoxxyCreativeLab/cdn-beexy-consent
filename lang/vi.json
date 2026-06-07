@@ -60,6 +60,52 @@
     "provider": "Nhà cung cấp",
     "value": "Giá trị"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "giây",
+        "other": "giây"
+      },
+      "minute": {
+        "one": "phút",
+        "other": "phút"
+      },
+      "hour": {
+        "one": "giờ",
+        "other": "giờ"
+      },
+      "day": {
+        "one": "ngày",
+        "other": "ngày"
+      },
+      "week": {
+        "one": "tuần",
+        "other": "tuần"
+      },
+      "month": {
+        "one": "tháng",
+        "other": "tháng"
+      },
+      "year": {
+        "one": "năm",
+        "other": "năm"
+      }
+    },
+    "keywords": {
+      "session": "Phiên",
+      "sessions": "Phiên",
+      "session cookie": "Phiên",
+      "persistent": "Lâu dài",
+      "permanent": "Vĩnh viễn",
+      "forever": "Vĩnh viễn",
+      "unlimited": "Không giới hạn",
+      "no expiration": "Không hết hạn",
+      "local storage": "Bộ nhớ cục bộ",
+      "various": "Khác nhau",
+      "varies": "Thay đổi",
+      "unknown": "Không xác định"
+    }
+  },
   "unknownCookies": {
     "title": "Cookie không xác định",
     "intro": "Các cookie này đã được phát hiện trên trang nhưng mục đích của chúng chưa được phân loại. Liên hệ với chủ sở hữu trang web nếu bạn muốn biết chi tiết."

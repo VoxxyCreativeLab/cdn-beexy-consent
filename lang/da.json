@@ -60,6 +60,52 @@
     "provider": "Udbyder",
     "value": "Værdi"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekund",
+        "other": "sekunder"
+      },
+      "minute": {
+        "one": "minut",
+        "other": "minutter"
+      },
+      "hour": {
+        "one": "time",
+        "other": "timer"
+      },
+      "day": {
+        "one": "dag",
+        "other": "dage"
+      },
+      "week": {
+        "one": "uge",
+        "other": "uger"
+      },
+      "month": {
+        "one": "måned",
+        "other": "måneder"
+      },
+      "year": {
+        "one": "år",
+        "other": "år"
+      }
+    },
+    "keywords": {
+      "session": "Session",
+      "sessions": "Session",
+      "session cookie": "Session",
+      "persistent": "Vedvarende",
+      "permanent": "Permanent",
+      "forever": "Permanent",
+      "unlimited": "Ubegrænset",
+      "no expiration": "Ingen udløb",
+      "local storage": "Lokal lagring",
+      "various": "Forskellige",
+      "varies": "Varierer",
+      "unknown": "Ukendt"
+    }
+  },
   "unknownCookies": {
     "title": "Ukendte cookies",
     "intro": "Disse cookies blev fundet på siden, men deres formål er ikke blevet klassificeret. Kontakt ejeren af webstedet, hvis du ønsker detaljer."

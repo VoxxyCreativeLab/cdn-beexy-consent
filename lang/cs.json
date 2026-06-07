@@ -60,6 +60,52 @@
     "provider": "Poskytovatel",
     "value": "Hodnota"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekunda",
+        "other": "sekund"
+      },
+      "minute": {
+        "one": "minuta",
+        "other": "minut"
+      },
+      "hour": {
+        "one": "hodina",
+        "other": "hodin"
+      },
+      "day": {
+        "one": "den",
+        "other": "dní"
+      },
+      "week": {
+        "one": "týden",
+        "other": "týdnů"
+      },
+      "month": {
+        "one": "měsíc",
+        "other": "měsíců"
+      },
+      "year": {
+        "one": "rok",
+        "other": "let"
+      }
+    },
+    "keywords": {
+      "session": "Relace",
+      "sessions": "Relace",
+      "session cookie": "Relace",
+      "persistent": "Trvalé",
+      "permanent": "Trvalé",
+      "forever": "Trvalé",
+      "unlimited": "Neomezené",
+      "no expiration": "Bez vypršení",
+      "local storage": "Místní úložiště",
+      "various": "Různé",
+      "varies": "Liší se",
+      "unknown": "Neznámé"
+    }
+  },
   "unknownCookies": {
     "title": "Neznámé soubory cookie",
     "intro": "Tyto soubory cookie byly na stránce zjištěny, ale jejich účel nebyl klasifikován. Pokud chcete podrobnosti, kontaktujte vlastníka webu."

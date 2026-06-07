@@ -60,6 +60,52 @@
     "provider": "Leverantör",
     "value": "Värde"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekund",
+        "other": "sekunder"
+      },
+      "minute": {
+        "one": "minut",
+        "other": "minuter"
+      },
+      "hour": {
+        "one": "timme",
+        "other": "timmar"
+      },
+      "day": {
+        "one": "dag",
+        "other": "dagar"
+      },
+      "week": {
+        "one": "vecka",
+        "other": "veckor"
+      },
+      "month": {
+        "one": "månad",
+        "other": "månader"
+      },
+      "year": {
+        "one": "år",
+        "other": "år"
+      }
+    },
+    "keywords": {
+      "session": "Session",
+      "sessions": "Session",
+      "session cookie": "Session",
+      "persistent": "Permanent",
+      "permanent": "Permanent",
+      "forever": "Permanent",
+      "unlimited": "Obegränsad",
+      "no expiration": "Ingen utgång",
+      "local storage": "Lokal lagring",
+      "various": "Diverse",
+      "varies": "Varierar",
+      "unknown": "Okänd"
+    }
+  },
   "unknownCookies": {
     "title": "Okända kakor",
     "intro": "Dessa kakor upptäcktes på sidan men deras syfte har inte klassificerats. Kontakta webbplatsens ägare om du vill ha detaljer."

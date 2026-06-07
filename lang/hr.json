@@ -60,6 +60,52 @@
     "provider": "Pružatelj",
     "value": "Vrijednost"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekunda",
+        "other": "sekundi"
+      },
+      "minute": {
+        "one": "minuta",
+        "other": "minuta"
+      },
+      "hour": {
+        "one": "sat",
+        "other": "sati"
+      },
+      "day": {
+        "one": "dan",
+        "other": "dana"
+      },
+      "week": {
+        "one": "tjedan",
+        "other": "tjedana"
+      },
+      "month": {
+        "one": "mjesec",
+        "other": "mjeseci"
+      },
+      "year": {
+        "one": "godina",
+        "other": "godina"
+      }
+    },
+    "keywords": {
+      "session": "Sesija",
+      "sessions": "Sesija",
+      "session cookie": "Sesija",
+      "persistent": "Trajni",
+      "permanent": "Trajni",
+      "forever": "Trajni",
+      "unlimited": "Neograničeno",
+      "no expiration": "Bez isteka",
+      "local storage": "Lokalna pohrana",
+      "various": "Razno",
+      "varies": "Promjenjivo",
+      "unknown": "Nepoznato"
+    }
+  },
   "unknownCookies": {
     "title": "Nepoznati kolačići",
     "intro": "Ovi kolačići otkriveni su na stranici, ali njihova svrha nije klasificirana. Obratite se vlasniku stranice ako želite više pojedinosti."

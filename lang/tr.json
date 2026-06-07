@@ -60,6 +60,52 @@
     "provider": "Sağlayıcı",
     "value": "Değer"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "saniye",
+        "other": "saniye"
+      },
+      "minute": {
+        "one": "dakika",
+        "other": "dakika"
+      },
+      "hour": {
+        "one": "saat",
+        "other": "saat"
+      },
+      "day": {
+        "one": "gün",
+        "other": "gün"
+      },
+      "week": {
+        "one": "hafta",
+        "other": "hafta"
+      },
+      "month": {
+        "one": "ay",
+        "other": "ay"
+      },
+      "year": {
+        "one": "yıl",
+        "other": "yıl"
+      }
+    },
+    "keywords": {
+      "session": "Oturum",
+      "sessions": "Oturum",
+      "session cookie": "Oturum",
+      "persistent": "Kalıcı",
+      "permanent": "Kalıcı",
+      "forever": "Kalıcı",
+      "unlimited": "Sınırsız",
+      "no expiration": "Süresiz",
+      "local storage": "Yerel depolama",
+      "various": "Çeşitli",
+      "varies": "Değişken",
+      "unknown": "Bilinmiyor"
+    }
+  },
   "unknownCookies": {
     "title": "Bilinmeyen çerezler",
     "intro": "Bu çerezler sayfada tespit edildi ancak amaçları sınıflandırılmadı. Ayrıntılar için site sahibiyle iletişime geçin."

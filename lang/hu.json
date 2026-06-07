@@ -60,6 +60,52 @@
     "provider": "Szolgáltató",
     "value": "Érték"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "másodperc",
+        "other": "másodperc"
+      },
+      "minute": {
+        "one": "perc",
+        "other": "perc"
+      },
+      "hour": {
+        "one": "óra",
+        "other": "óra"
+      },
+      "day": {
+        "one": "nap",
+        "other": "nap"
+      },
+      "week": {
+        "one": "hét",
+        "other": "hét"
+      },
+      "month": {
+        "one": "hónap",
+        "other": "hónap"
+      },
+      "year": {
+        "one": "év",
+        "other": "év"
+      }
+    },
+    "keywords": {
+      "session": "Munkamenet",
+      "sessions": "Munkamenet",
+      "session cookie": "Munkamenet",
+      "persistent": "Állandó",
+      "permanent": "Állandó",
+      "forever": "Állandó",
+      "unlimited": "Korlátlan",
+      "no expiration": "Nincs lejárat",
+      "local storage": "Helyi tárhely",
+      "various": "Különböző",
+      "varies": "Változó",
+      "unknown": "Ismeretlen"
+    }
+  },
   "unknownCookies": {
     "title": "Ismeretlen cookie-k",
     "intro": "Ezeket a cookie-kat észleltük az oldalon, de a céljuk nincs besorolva. Részletekért forduljon az oldal tulajdonosához."

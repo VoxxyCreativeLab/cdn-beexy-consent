@@ -60,6 +60,52 @@
     "provider": "Furnizor",
     "value": "Valoare"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "secundă",
+        "other": "secunde"
+      },
+      "minute": {
+        "one": "minut",
+        "other": "minute"
+      },
+      "hour": {
+        "one": "oră",
+        "other": "ore"
+      },
+      "day": {
+        "one": "zi",
+        "other": "zile"
+      },
+      "week": {
+        "one": "săptămână",
+        "other": "săptămâni"
+      },
+      "month": {
+        "one": "lună",
+        "other": "luni"
+      },
+      "year": {
+        "one": "an",
+        "other": "ani"
+      }
+    },
+    "keywords": {
+      "session": "Sesiune",
+      "sessions": "Sesiune",
+      "session cookie": "Sesiune",
+      "persistent": "Persistent",
+      "permanent": "Permanent",
+      "forever": "Permanent",
+      "unlimited": "Nelimitat",
+      "no expiration": "Fără expirare",
+      "local storage": "Stocare locală",
+      "various": "Diverse",
+      "varies": "Variază",
+      "unknown": "Necunoscut"
+    }
+  },
   "unknownCookies": {
     "title": "Module cookie necunoscute",
     "intro": "Aceste module cookie au fost detectate pe pagină, dar scopul lor nu a fost clasificat. Contactați proprietarul site-ului dacă doriți detalii."

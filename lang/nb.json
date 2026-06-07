@@ -60,6 +60,52 @@
     "provider": "Leverandør",
     "value": "Verdi"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "sekund",
+        "other": "sekunder"
+      },
+      "minute": {
+        "one": "minutt",
+        "other": "minutter"
+      },
+      "hour": {
+        "one": "time",
+        "other": "timer"
+      },
+      "day": {
+        "one": "dag",
+        "other": "dager"
+      },
+      "week": {
+        "one": "uke",
+        "other": "uker"
+      },
+      "month": {
+        "one": "måned",
+        "other": "måneder"
+      },
+      "year": {
+        "one": "år",
+        "other": "år"
+      }
+    },
+    "keywords": {
+      "session": "Økt",
+      "sessions": "Økt",
+      "session cookie": "Økt",
+      "persistent": "Vedvarende",
+      "permanent": "Permanent",
+      "forever": "Permanent",
+      "unlimited": "Ubegrenset",
+      "no expiration": "Ingen utløpsdato",
+      "local storage": "Lokal lagring",
+      "various": "Ulike",
+      "varies": "Varierer",
+      "unknown": "Ukjent"
+    }
+  },
   "unknownCookies": {
     "title": "Ukjente informasjonskapsler",
     "intro": "Disse informasjonskapslene ble oppdaget på siden, men formålet er ikke klassifisert. Kontakt eieren av nettstedet hvis du ønsker detaljer."

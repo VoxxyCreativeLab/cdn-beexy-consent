@@ -60,6 +60,52 @@
     "provider": "提供者",
     "value": "值"
   },
+  "duration": {
+    "units": {
+      "second": {
+        "one": "秒",
+        "other": "秒"
+      },
+      "minute": {
+        "one": "分鐘",
+        "other": "分鐘"
+      },
+      "hour": {
+        "one": "小時",
+        "other": "小時"
+      },
+      "day": {
+        "one": "天",
+        "other": "天"
+      },
+      "week": {
+        "one": "週",
+        "other": "週"
+      },
+      "month": {
+        "one": "個月",
+        "other": "個月"
+      },
+      "year": {
+        "one": "年",
+        "other": "年"
+      }
+    },
+    "keywords": {
+      "session": "工作階段",
+      "sessions": "工作階段",
+      "session cookie": "工作階段",
+      "persistent": "持續性",
+      "permanent": "永久",
+      "forever": "永久",
+      "unlimited": "無限制",
+      "no expiration": "無到期日",
+      "local storage": "本機儲存",
+      "various": "多種",
+      "varies": "不固定",
+      "unknown": "未知"
+    }
+  },
   "unknownCookies": {
     "title": "未知 Cookie",
     "intro": "已在頁面上偵測到這些 Cookie，但其用途尚未分類。如需詳細資訊，請聯絡網站擁有者。"
