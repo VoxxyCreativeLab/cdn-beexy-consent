@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.4.1';
+    var BANNER_VERSION = '1.5.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -439,6 +439,7 @@
        see docs/superpowers/specs/2026-05-11-banner-density.md.
        ═══════════════════════════════════════════════ */
     var bannerDensity = window.beexyConsentBannerDensity;
+    var mobileBannerDensity = window.beexyConsentMobileBannerDensity;
 
     var densityTokens = {
         compact: {
@@ -479,27 +480,84 @@
         }
     };
 
-    /* Apply selected density preset's tokens to the banner container.
-       Called once after the container is appended to the DOM. Iterates
-       the matching tokens object and calls setProperty for each
-       --beexy-consent-d-* custom property; descendants inherit via cascade.
-       Undefined / unknown density falls through to spacious. */
-    function applyDensity(el, density) {
+    /* Mobile density tokens (BACKLOG #17, v1.5.0). 19 mobile-specific
+       tokens that apply inside @media (max-width: 600px). Spacious
+       values equal the pre-v1.5.0 mobile rendering where mapped;
+       five previously-inherited rules (.header pad-y, .content pad-y,
+       .tabs margin-top, .tab padding x/y) intentionally tighten by
+       2-3px per spec table. Undefined / unknown mobileDensity falls
+       through to spacious (D10 contract). Applied to the same banner
+       shell element as the desktop tokens via setProperty('--beexy-
+       consent-md-<key>', value). Landscape emergency block (@media
+       max-height: 500px) is NOT density-aware. */
+    var mobileDensityTokens = {
+        compact: {
+            'shell-margin': '8px',
+            'pad-y': '14px', 'pad-x': '16px', 'pad-b-actions': '18px',
+            'title-size': '14px', 'title-mb': '6px',
+            'body-size': '13px', 'body-lh': '1.45',
+            'tab-margin-y': '12px', 'tab-margin-x': '16px',
+            'tab-btn-pad-y': '8px', 'tab-btn-pad-x': '8px', 'tab-btn-size': '11px',
+            'action-gap': '8px',
+            'btn-pad-y': '12px', 'btn-pad-x': '18px', 'btn-size': '13px',
+            'logo-h': '24px', 'badge-h': '14px'
+        },
+        standard: {
+            'shell-margin': '8px',
+            'pad-y': '18px', 'pad-x': '20px', 'pad-b-actions': '21px',
+            'title-size': '17px', 'title-mb': '9px',
+            'body-size': '13px', 'body-lh': '1.55',
+            'tab-margin-y': '14px', 'tab-margin-x': '20px',
+            'tab-btn-pad-y': '9px', 'tab-btn-pad-x': '10px', 'tab-btn-size': '12px',
+            'action-gap': '9px',
+            'btn-pad-y': '14px', 'btn-pad-x': '20px', 'btn-size': '14px',
+            'logo-h': '27px', 'badge-h': '15px'
+        },
+        spacious: {
+            'shell-margin': '8px',
+            'pad-y': '21px', 'pad-x': '20px', 'pad-b-actions': '24px',
+            'title-size': '20px', 'title-mb': '12px',
+            'body-size': '14px', 'body-lh': '1.7',
+            'tab-margin-y': '17px', 'tab-margin-x': '20px',
+            'tab-btn-pad-y': '11px', 'tab-btn-pad-x': '12px', 'tab-btn-size': '12px',
+            'action-gap': '10px',
+            'btn-pad-y': '16px', 'btn-pad-x': '22px', 'btn-size': '15px',
+            'logo-h': '30px', 'badge-h': '16px'
+        }
+    };
+
+    /* Apply selected desktop AND mobile density preset tokens to the banner
+       container. Called once after the container is appended to the DOM.
+       Iterates each matching tokens object and calls setProperty for each
+       --beexy-consent-d-* (desktop, active above 600px) and
+       --beexy-consent-md-* (mobile, active inside @media max-width: 600px)
+       custom property; descendants inherit via cascade. Undefined / unknown
+       density of either kind falls through to spacious. v1.5.0+. */
+    function applyDensity(el, density, mobileDensity) {
         var tokens = densityTokens[density] || densityTokens.spacious;
         for (var key in tokens) {
             if (Object.prototype.hasOwnProperty.call(tokens, key)) {
                 el.style.setProperty('--beexy-consent-d-' + key, tokens[key]);
             }
         }
+        var mobileTokens = mobileDensityTokens[mobileDensity] || mobileDensityTokens.spacious;
+        for (var mKey in mobileTokens) {
+            if (Object.prototype.hasOwnProperty.call(mobileTokens, mKey)) {
+                el.style.setProperty('--beexy-consent-md-' + mKey, mobileTokens[mKey]);
+            }
+        }
         if (window.beexyConsentEnableDebugLogging) {
-            console.log('[Beexy Consent] Banner density: ' + (density || 'undefined -> spacious'));
+            console.log(
+                '[Beexy Consent] Banner density: ' + (density || 'undefined -> spacious') +
+                ' / mobile: ' + (mobileDensity || 'undefined -> spacious')
+            );
         }
     }
 
     /* Auto-included in Necessary: banner's own cookies */
     var AUTO_NECESSARY_COOKIES = [
-        { name: 'beexy_consent', category: 'necessary', provider: 'Beexy Consent', duration: '1 year', purpose: 'Stores your cookie consent preferences' },
-        { name: 'beexy_geo', category: 'necessary', provider: 'Beexy Consent', duration: '30 days', purpose: 'Caches your detected geographic region' }
+        { name: 'beexy_consent', category: 'necessary', provider: 'Beexy Consent', duration: '1 year', purpose: 'Stores your cookie consent preferences', purposeKey: 'selfCookies.beexy_consent' },
+        { name: 'beexy_geo', category: 'necessary', provider: 'Beexy Consent', duration: '30 days', purpose: 'Caches your detected geographic region', purposeKey: 'selfCookies.beexy_geo' }
     ];
     var customCookies = window.beexyConsentCustomCookies || [];
     /* Two-layer detection model (BACKLOG #2 v1.4.0):
@@ -670,7 +728,7 @@
     function loadCookieDatabase(tier, callback) {
         /* Base URL override hook for self-hosting and local testing.
            Mirrors window.beexyConsentConfigUrl for beexy-global.json. Use trailing
-           hyphen pattern: e.g. 'http://localhost:5500/src/config/cookie-tiers/cookies-'
+           hyphen pattern: e.g. 'http://localhost:5500/src/config/cookie-database/tiers/cookies-'
            will resolve to 'cookies-small.json' / 'cookies-medium.json' etc. */
         var base = window.beexyConsentCookiesTierBase || COOKIES_TIER_CDN_BASE;
         var url = base + tier + '.json';
@@ -1593,11 +1651,19 @@
         for (var i = 0; i < cookies.length; i++) {
             var c = cookies[i];
             var english = c.purpose || '';
-            var pid = (translate && english) ? pidOf(english) : '';
-            /* If translations already loaded (re-render path), use them; else emit
-               English now and let the data-pid patch upgrade it after the fetch. */
-            var purposeText = (pid && purposeTranslations && purposeTranslations[pid]) || english;
-            var pidAttr = pid ? ' data-pid="' + pid + '"' : '';
+            var purposeText, pidAttr = '';
+            if (c.purposeKey) {
+                /* Self-cookies (beexy_consent / beexy_geo): localized via getText
+                   (lang files), with per-key English fallback built in. Not in the
+                   OCD database, so they never carry a pid. */
+                purposeText = getText(c.purposeKey) || english;
+            } else {
+                var pid = (translate && english) ? pidOf(english) : '';
+                /* If translations already loaded (re-render path), use them; else emit
+                   English now and let the data-pid patch upgrade it after the fetch. */
+                purposeText = (pid && purposeTranslations && purposeTranslations[pid]) || english;
+                pidAttr = pid ? ' data-pid="' + pid + '"' : '';
+            }
             html += '<tr>' +
                 '<td>' + (c.name || '') + '</td>' +
                 '<td' + pidAttr + '>' + purposeText + '</td>' +
@@ -1895,11 +1961,12 @@
                 '--beexy-consent-font: ' + fontFamily + ';' +
                 '--beexy-consent-widget-bg: ' + cfg.widgetBgColor + ';' +
                 '--beexy-consent-widget-content: ' + cfg.widgetContentColor + ';' +
-                /* Banner density tokens (BACKLOG #14, v1.3.0). Defaults =
-                   spacious so pre-v1.3.0 visuals are preserved. JS applies
-                   compact / standard overrides via setProperty after the
-                   shell mounts. Mobile (@media max-width: 600px) is NOT
-                   affected -- mobile layout remains content-driven. */
+                /* Desktop banner density tokens (BACKLOG #14, v1.3.0).
+                   Defaults = spacious so pre-v1.3.0 visuals are preserved.
+                   JS applies compact / standard overrides via setProperty
+                   after the shell mounts. Active above 600px viewport.
+                   Mobile (--beexy-consent-md-*) is declared below and
+                   active inside @media (max-width: 600px). v1.5.0+. */
                 '--beexy-consent-d-banner-width: 900px;' +
                 '--beexy-consent-d-pad-y: 24px;' +
                 '--beexy-consent-d-pad-x: 28px;' +
@@ -1925,6 +1992,35 @@
                 '--beexy-consent-d-logo-h: 36px;' +
                 '--beexy-consent-d-badge-h: 20px;' +
                 '--beexy-consent-d-content-mh: 445px;' +
+                /* Mobile banner density tokens (BACKLOG #17, v1.5.0).
+                   Defaults = spacious so undefined / Basic / pre-upgrade
+                   Pro+ render byte-for-byte vs pre-v1.5.0 where mapped.
+                   Five previously-inherited rules (.header pad-y,
+                   .content pad-y, .tabs margin-top, .tab padding x/y)
+                   intentionally tighten by 2-3px per spec table. JS
+                   applies compact / standard overrides via setProperty
+                   after the shell mounts. Active inside @media
+                   (max-width: 600px). Landscape emergency block
+                   (@media max-height: 500px) is NOT density-aware. */
+                '--beexy-consent-md-shell-margin: 8px;' +
+                '--beexy-consent-md-pad-y: 21px;' +
+                '--beexy-consent-md-pad-x: 20px;' +
+                '--beexy-consent-md-pad-b-actions: 24px;' +
+                '--beexy-consent-md-title-size: 20px;' +
+                '--beexy-consent-md-title-mb: 12px;' +
+                '--beexy-consent-md-body-size: 14px;' +
+                '--beexy-consent-md-body-lh: 1.7;' +
+                '--beexy-consent-md-tab-margin-y: 17px;' +
+                '--beexy-consent-md-tab-margin-x: 20px;' +
+                '--beexy-consent-md-tab-btn-pad-y: 11px;' +
+                '--beexy-consent-md-tab-btn-pad-x: 12px;' +
+                '--beexy-consent-md-tab-btn-size: 12px;' +
+                '--beexy-consent-md-action-gap: 10px;' +
+                '--beexy-consent-md-btn-pad-y: 16px;' +
+                '--beexy-consent-md-btn-pad-x: 22px;' +
+                '--beexy-consent-md-btn-size: 15px;' +
+                '--beexy-consent-md-logo-h: 30px;' +
+                '--beexy-consent-md-badge-h: 16px;' +
             '}' +
 
             'html.beexy-consent-blur > body > *:not(#' + cfg.containerId + ') {' +
@@ -2343,10 +2439,19 @@
                       'background: transparent;' +
                       'color: var(--beexy-consent-btn-outline);' +
                       'border-color: var(--beexy-consent-btn-outline);' +
-                      'box-shadow: none;' +
+                      /* Rest-state drop shadow so outline buttons read as tappable
+                         on light or busy pages. Uses a neutral black alpha (not the
+                         outline color): a color-keyed shadow is invisible against a
+                         like-colored surface, whereas a neutral shadow lifts the
+                         button off any background. Kept lighter than the filled
+                         style (0 2px 8px primary) so outline stays visually distinct.
+                         Applied to the shared .beexy-consent-btn class, so
+                         accept/customize/deny stay equal-weight by construction. */
+                      'box-shadow: 0 2px 6px rgba(0,0,0,0.14);' +
                   '}' +
                   '.beexy-consent-btn:hover {' +
                       'background: ' + oRgba(0.15) + ';' +
+                      'box-shadow: 0 4px 10px rgba(0,0,0,0.20);' +
                   '}'
                 : cfg.buttonStyle === 'filled-outline'
                 /* Filled-outline: solid primary bg + visible btn-text border */
@@ -2382,14 +2487,19 @@
                 ? (function () {
                       var secColor = cfg.buttonStyle === 'filled' ? 'var(--beexy-consent-primary)' : 'var(--beexy-consent-btn-outline)';
                       var secHover = cfg.buttonStyle === 'filled' ? pRgba(0.1) : oRgba(0.1);
+                      /* Same neutral drop shadow given to outline buttons, so the
+                         deny-in-opt-out-region action reads as tappable and stays
+                         equal-weight with the primary action. Neutral (not color-keyed)
+                         for the same reason: it must show against any background. */
                       return '.beexy-consent-btn-secondary {' +
                           'background: transparent !important;' +
                           'color: ' + secColor + ' !important;' +
                           'border-color: ' + secColor + ' !important;' +
-                          'box-shadow: none !important;' +
+                          'box-shadow: 0 2px 6px rgba(0,0,0,0.14) !important;' +
                       '}' +
                       '.beexy-consent-btn-secondary:hover {' +
                           'background: ' + secHover + ' !important;' +
+                          'box-shadow: 0 4px 10px rgba(0,0,0,0.20) !important;' +
                       '}';
                   })()
                 : '') +
@@ -2431,25 +2541,33 @@
 
             '@media (max-width: 600px) {' +
                 '.beexy-consent {' +
-                    'width: calc(100vw - 16px);' +
-                    'max-height: calc(100dvh - 16px);' +
+                    'width: calc(100vw - calc(var(--beexy-consent-md-shell-margin) * 2));' +
+                    'max-height: calc(100dvh - calc(var(--beexy-consent-md-shell-margin) * 2));' +
                     'border-radius: var(--beexy-consent-radius);' +
                 '}' +
                 '.beexy-consent-content { max-height: none; }' +
                 '.beexy-consent-header, .beexy-consent-content, .beexy-consent-actions, .beexy-consent-dnsmpi {' +
-                    'padding-left: 20px;' +
-                    'padding-right: 20px;' +
+                    'padding-left: var(--beexy-consent-md-pad-x);' +
+                    'padding-right: var(--beexy-consent-md-pad-x);' +
                 '}' +
-                '.beexy-consent-tabs { margin-left: 20px; margin-right: 20px; }' +
+                '.beexy-consent-header { padding-top: var(--beexy-consent-md-pad-y); }' +
+                '.beexy-consent-content { padding-top: var(--beexy-consent-md-pad-y); padding-bottom: var(--beexy-consent-md-pad-y); }' +
+                '.beexy-consent-tabs {' +
+                    'margin-left: var(--beexy-consent-md-tab-margin-x);' +
+                    'margin-right: var(--beexy-consent-md-tab-margin-x);' +
+                    'margin-top: var(--beexy-consent-md-tab-margin-y);' +
+                '}' +
                 '.beexy-consent-actions {' +
                     'flex-direction: column;' +
-                    'padding-bottom: 24px;' +
+                    'gap: var(--beexy-consent-md-action-gap);' +
+                    'padding-bottom: var(--beexy-consent-md-pad-b-actions);' +
                 '}' +
-                '.beexy-consent-btn { padding: 16px 22px; font-size: 15px; }' +
-                '.beexy-consent-tab { font-size: 12px; padding: 9px 10px; }' +
-                '.beexy-consent-title { font-size: 20px; }' +
-                '.beexy-consent-logo-img { height: 30px; }' +
-                '.beexy-consent-badge-logo { height: 16px; }' +
+                '.beexy-consent-btn { padding: var(--beexy-consent-md-btn-pad-y) var(--beexy-consent-md-btn-pad-x); font-size: var(--beexy-consent-md-btn-size); }' +
+                '.beexy-consent-tab { font-size: var(--beexy-consent-md-tab-btn-size); padding: var(--beexy-consent-md-tab-btn-pad-y) var(--beexy-consent-md-tab-btn-pad-x); }' +
+                '.beexy-consent-title { font-size: var(--beexy-consent-md-title-size); margin-bottom: var(--beexy-consent-md-title-mb); }' +
+                '.beexy-consent-text { font-size: var(--beexy-consent-md-body-size); line-height: var(--beexy-consent-md-body-lh); }' +
+                '.beexy-consent-logo-img { height: var(--beexy-consent-md-logo-h); }' +
+                '.beexy-consent-badge-logo { height: var(--beexy-consent-md-badge-h); }' +
                 '.beexy-consent-badge-mono { width: 48px; }' +
                 '.beexy-consent-badge-text { font-size: 8px; }' +
                 '#' + cfg.widgetId + ' { bottom: 12px; ' + cfg.widgetPosition + ': 12px; width: 36px; height: 36px; }' +
@@ -2826,10 +2944,12 @@
             container.innerHTML = createBannerHTML();
             body.appendChild(container);
 
-            /* Apply density preset tokens on the container element. Custom
-               properties cascade to all .beexy-consent-* descendants and override
-               the spacious defaults declared at :root in the CSS. */
-            applyDensity(container, bannerDensity);
+            /* Apply desktop AND mobile density preset tokens on the container.
+               Custom properties cascade to all .beexy-consent-* descendants and
+               override the spacious defaults declared at :root. Mobile tokens
+               (--beexy-consent-md-*) are also written but only take effect inside
+               @media (max-width: 600px). v1.5.0+. */
+            applyDensity(container, bannerDensity, mobileBannerDensity);
 
             /* ── Close button ── */
             var closeBtn = document.getElementById('beexyConsentCloseBtn');
