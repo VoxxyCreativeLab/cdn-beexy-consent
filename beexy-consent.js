@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.5.1';
+    var BANNER_VERSION = '1.5.2';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -2087,6 +2087,16 @@
                 'to { transform: translate(-50%, -50%) scale(1); opacity: 1; }' +
             '}' +
 
+            /* Mobile-only mount animation (BACKLOG #17 / v1.5.2). Preserves
+               translateX(-50%) horizontal centering throughout, animates only
+               scale + opacity. The desktop keyframe assumes
+               translate(-50%, -50%) and would cause a 500ms upward jump on
+               mobile where the banner is bottom-anchored. */
+            '@keyframes beexyConsentPopMobile {' +
+                'from { transform: translateX(-50%) scale(0.96); opacity: 0; }' +
+                'to { transform: translateX(-50%) scale(1); opacity: 1; }' +
+            '}' +
+
             '.beexy-consent-header {' +
                 'padding: var(--beexy-consent-d-pad-y) var(--beexy-consent-d-pad-x) 0 var(--beexy-consent-d-pad-x);' +
                 'display: flex;' +
@@ -2542,13 +2552,14 @@
             '@media (max-width: 600px) {' +
                 '.beexy-consent {' +
                     'top: auto;' +
-                    'left: 0;' +
-                    'right: 0;' +
-                    'bottom: 0;' +
-                    'transform: none;' +
-                    'width: 100vw;' +
-                    'max-height: 100dvh;' +
-                    'border-radius: 12px 12px 0 0;' +
+                    'left: 50%;' +
+                    'bottom: 6px;' +
+                    'transform: translateX(-50%);' +
+                    'width: calc(100vw - 16px);' +
+                    'max-width: calc(100vw - 16px);' +
+                    'max-height: calc(100dvh - 12px);' +
+                    'border-radius: 12px;' +
+                    'animation: beexyConsentPopMobile 0.5s cubic-bezier(0.16, 1, 0.3, 1);' +
                 '}' +
                 '.beexy-consent-content { max-height: none; }' +
                 '.beexy-consent-header, .beexy-consent-content, .beexy-consent-actions, .beexy-consent-dnsmpi {' +
