@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.5.0';
+    var BANNER_VERSION = '1.5.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -2541,9 +2541,14 @@
 
             '@media (max-width: 600px) {' +
                 '.beexy-consent {' +
-                    'width: calc(100vw - calc(var(--beexy-consent-md-shell-margin) * 2));' +
-                    'max-height: calc(100dvh - calc(var(--beexy-consent-md-shell-margin) * 2));' +
-                    'border-radius: var(--beexy-consent-radius);' +
+                    'top: auto;' +
+                    'left: 0;' +
+                    'right: 0;' +
+                    'bottom: 0;' +
+                    'transform: none;' +
+                    'width: 100vw;' +
+                    'max-height: 100dvh;' +
+                    'border-radius: 12px 12px 0 0;' +
                 '}' +
                 '.beexy-consent-content { max-height: none; }' +
                 '.beexy-consent-header, .beexy-consent-content, .beexy-consent-actions, .beexy-consent-dnsmpi {' +
