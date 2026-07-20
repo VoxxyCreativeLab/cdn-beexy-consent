@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.5.2';
+    var BANNER_VERSION = '1.5.3';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -236,6 +236,19 @@
         return trimmed;
     }
 
+    /* cleanUrl | strips invisible characters (zero-width spaces, BOM, NBSP,
+       control chars) from URL fields before they are injected into HTML
+       src/href or CSS url(). Editors like Google Docs insert U+200B at URL
+       line-wrap points; a stray one makes an absolute URL resolve relative
+       and 404. Global strip removes the char wherever it sits (leading or
+       mid-path), then trims. Byte-identical to test/unit/cleanUrl.fixture.js. */
+    function cleanUrl(value) {
+        return String(value || '')
+            .replace(/[\u200B-\u200D\u2060\uFEFF\u00A0]/g, '')
+            .replace(/[\u0000-\u001F\u007F]/g, '')
+            .trim();
+    }
+
     /* ═══════════════════════════════════════════════
        I18N HELPERS (WS4) | byte-identical to scripts/i18n.js
        pidOf: stable id for an English cookie purpose (FNV-1a 32-bit over the
@@ -402,7 +415,7 @@
            missing var drives default-off. */
         suppressOnPrivacyPage: window.beexyConsentSuppressOnPrivacyPage === true,
         dataController: window.beexyConsentDataController || '',
-        logoUrl: window.beexyConsentLogoUrl || '',
+        logoUrl: cleanUrl(window.beexyConsentLogoUrl),
         fontUrl: window.beexyConsentFontUrl || '',
         fontFamily: window.beexyConsentFontFamily || '',
         logEndpoint: window.beexyConsentLogEndpoint || '',
@@ -417,12 +430,12 @@
         cornerStyle: window.beexyConsentCornerStyle || 'rounded',
         surfaceIntensity: window.beexyConsentSurfaceIntensity || 'auto',
         widgetPosition: window.beexyConsentWidgetPosition || 'left',
-        widgetLogoUrl: window.beexyConsentWidgetLogoUrl || '',
+        widgetLogoUrl: cleanUrl(window.beexyConsentWidgetLogoUrl),
         widgetBgColor: window.beexyConsentWidgetBgColor || '#0b4650',
         widgetContentColor: window.beexyConsentWidgetContentColor || '#e6ff2b',
-        agencyLogoUrl: window.beexyConsentAgencyLogoUrl || '',
-        agencyUrl: window.beexyConsentAgencyUrl || '',
-        badgeLogoUrl: window.beexyConsentBadgeLogoUrl || ''
+        agencyLogoUrl: cleanUrl(window.beexyConsentAgencyLogoUrl),
+        agencyUrl: cleanUrl(window.beexyConsentAgencyUrl),
+        badgeLogoUrl: cleanUrl(window.beexyConsentBadgeLogoUrl)
     };
 
     /* ═══════════════════════════════════════════════
@@ -2548,6 +2561,20 @@
                 'display: block;' +
                 'fill: var(--beexy-consent-widget-content);' +
             '}' +
+            /* Custom white-label widget logo: recoloured to Widget content color
+               via CSS mask (an <img> cannot be tinted; the SVG has no fill attr).
+               Mirrors .beexy-consent-badge-mono. */
+            '#' + cfg.widgetId + ' .beexy-consent-widget-logo-mono {' +
+                'display: block;' +
+                'width: 70%; height: 70%;' +
+                'background-color: var(--beexy-consent-widget-content);' +
+                '-webkit-mask-size: contain;' +
+                'mask-size: contain;' +
+                '-webkit-mask-repeat: no-repeat;' +
+                'mask-repeat: no-repeat;' +
+                '-webkit-mask-position: center;' +
+                'mask-position: center;' +
+            '}' +
 
             '@media (max-width: 600px) {' +
                 '.beexy-consent {' +
@@ -2738,7 +2765,7 @@
 
         /* Re-open consent widget (floating Voxxy logo) */
         var widgetIcon = cfg.widgetLogoUrl
-            ? '<img style="pointer-events:none;width:70%;height:70%;" src="' + cfg.widgetLogoUrl + '" alt="Manage cookies" />'
+            ? '<span class="beexy-consent-widget-logo-mono" aria-hidden="true" style="pointer-events:none;-webkit-mask-image:url(' + cfg.widgetLogoUrl + ');mask-image:url(' + cfg.widgetLogoUrl + ');"></span>'
             : '<svg style="pointer-events:none" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10.9,8.8H9.2L8.5,10H7.1l-1.1,1.9l0.3,0.6l-0.9,1.6l0.7,1.1l-0.7,1.1l1,1.6l-0.4,0.6l1.1,1.8h1.4l0.7,1.2h1.7l0.8-1.4v-9.7L10.9,8.8z M9.4,9.3h1.2l0.6,1.1v1.7l-2.3-1.9l0,0L9.4,9.3z M11.2,17.5l-3.7,0.1l3.7-2.1V17.5z M11.2,14.8l-3.7-2.1l3.7,0.1V14.8z M7.4,10.5h1.1l2.3,1.8l-4-0.1l0,0l-0.2-0.3L7.4,10.5z M6.1,14.1l0.7-1.2l0,0l3.8,2.1h-4L6.1,14.1z M6.1,16.3l0.5-0.9h4l-3.8,2.1L6.1,16.3z M6.6,18.4L6.8,18l0,0l4-0.1l-2.3,1.8H7.4L6.6,18.4z M10.6,21H9.4l-0.5-0.9l0,0l2.3-1.9v1.7L10.6,21z"/><path d="M19.1,9.5c-1.1-1.5-2.7-2.6-4.5-3.2V1.7h0.9V0H8.4v1.7h0.9v4.7C7.5,6.9,6,8,4.9,9.5C3.7,11.1,3.1,13,3.1,15c0,5,4.1,9,9,9s9-4.1,9-9C21,13,20.3,11.1,19.1,9.5 M12,23.5c-4.7,0-8.5-3.9-8.5-8.5c0-3.8,2.5-7.1,6.1-8.1h0.2V1.3H8.9V0.5h6.2v0.8h-0.9v5.5h0.2c3.6,1.1,6,4.5,6,8.1C20.5,19.6,16.7,23.5,12,23.5"/><rect x="8.8" y="1.3" width="6.3" height="0.4"/><path d="M17.8,15.2l0.7-1.1l-0.9-1.6l0.3-0.6l-1.1-1.8h-1.4l-0.7-1.2H13l-0.8,1.4V20l0.8,1.4h1.7l0.7-1.2h1.4l1.1-1.8l-0.3-0.6l0.9-1.6L17.8,15.2z M13.6,9.3h0.9v0.9h-0.9V9.3z M13.2,12.1h0.7v0.7h-0.7V12.1z M14.7,15h-1.4v-1.4h1.4V15z M15.3,11.7h-0.9v-0.8h0.9V11.7z M16.1,10.5h0.7v0.7h-0.7V10.5z M16.4,13.4h-0.9v-0.9h0.9V13.4z M17.4,14.2h-0.6v-0.6h0.6V14.2z"/><rect x="15.7" y="8.4" width="1.2" height="1.2"/><rect x="16.7" y="5.9" width="0.9" height="0.9"/><rect x="14.3" y="7.5" width="0.9" height="0.9"/></svg>';
         html += '<div id="' + cfg.widgetId + '" role="button" tabindex="0" aria-label="' + getText('widget.ariaLabel') + '">' +
             widgetIcon +
