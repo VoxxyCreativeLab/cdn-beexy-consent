@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.7.0';
+    var BANNER_VERSION = '1.7.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -685,7 +685,13 @@
 
         var url = window.beexyConsentConfigUrl || CONFIG_CDN_URL;
 
-        fetch(url)
+        // Config carries region models + legal texts, so it must be CURRENT, not held
+        // in jsDelivr's 7-day browser cache (max-age=604800). cache:'no-cache' forces a
+        // revalidation against the edge every load: a tiny 304 when unchanged, or 200
+        // with the new config within minutes of a CDN cut. Region / legal changes then
+        // take effect on the visitor's next page load instead of up to 7 days later.
+        // See LESSONS 2026-08-18 (config-cache propagation).
+        fetch(url, { cache: 'no-cache' })
             .then(function (response) {
                 if (!response.ok) throw new Error('HTTP ' + response.status);
                 return response.json();
