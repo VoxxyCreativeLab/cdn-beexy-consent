@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.5.3';
+    var BANNER_VERSION = '1.7.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -414,6 +414,9 @@
            defaultValue:true in Pro+ drives default-on behavior; Free's
            missing var drives default-off. */
         suppressOnPrivacyPage: window.beexyConsentSuppressOnPrivacyPage === true,
+        /* Reload-on-consent (Pro+ only, v1.6.0). Strict === true so Basic
+           (no var injected) reads undefined and resolves to false. */
+        reloadOnConsent: window.beexyConsentReloadOnConsent === true,
         dataController: window.beexyConsentDataController || '',
         logoUrl: cleanUrl(window.beexyConsentLogoUrl),
         fontUrl: window.beexyConsentFontUrl || '',
@@ -974,19 +977,27 @@
         return navigator.globalPrivacyControl === true;
     }
 
-    function getEffectiveDefaults() {
-        var mode = getMode();
+    /* computeEffectiveDefaults | pure core of getEffectiveDefaults, extracted
+       for unit testing (logic-identical companion at
+       test/unit/computeEffectiveDefaults.fixture.js; mirror changes in the
+       same commit). Given a resolved region mode and the GPC state, returns
+       the default permission set. #53. */
+    function computeEffectiveDefaults(mode, gpcEnabled) {
         var d = {
             necessary: true,
             preferences: mode.defaults.preferences,
             analytics: mode.defaults.analytics,
             marketing: mode.defaults.marketing
         };
-        if (mode.honorGpc && isGpcEnabled()) {
+        if (mode.honorGpc && gpcEnabled) {
             d.analytics = false;
             d.marketing = false;
         }
         return d;
+    }
+
+    function getEffectiveDefaults() {
+        return computeEffectiveDefaults(getMode(), isGpcEnabled());
     }
 
     /* ═══════════════════════════════════════════════
@@ -1017,6 +1028,15 @@
        COOKIE HELPERS
        ═══════════════════════════════════════════════ */
 
+    /* isExplicitConsent | logic-identical companion to
+       test/unit/isExplicitConsent.fixture.js (mirror changes in the same
+       commit). True only for a real user choice; a provisional default
+       write (Pixel fallback or the banner's own region default) is
+       explicitConsent:false and reads as "no decision yet". #44. */
+    function isExplicitConsent(parsed) {
+        return !!parsed && parsed.explicitConsent === true;
+    }
+
     function readCookie(name) {
         var nameEQ = name + '=';
         var cookies = document.cookie.split(';');
@@ -1040,6 +1060,29 @@
         var secure = location.protocol === 'https:' ? '; Secure' : '';
         var domain = ROOT_DOMAIN ? '; domain=' + ROOT_DOMAIN : '';
         document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax' + secure + domain;
+    }
+
+    /* writeProvisionalConsent(permissions) | persist a NON-explicit consent
+       record reflecting the resolved region default, so downstream first-party
+       readers (Webloader _bx_*, Pixel) see the region-appropriate state
+       (write == measure). Only reached for granted (opt-out) defaults; opt-in
+       writes nothing pre-consent. The banner still shows afterwards, because
+       checkExistingConsent does not honor a non-explicit cookie, so the visitor
+       can still opt out. Modeled on the "none"-model auto-grant write. #44. */
+    function writeProvisionalConsent(permissions) {
+        var expiry = getConsentExpiry();
+        consentState.permissions = permissions;
+        consentState.explicitConsent = false;
+        window.beexyConsent = consentState;
+        setCookie(cfg.cookieName, JSON.stringify({
+            version: consentState.version,
+            permissions: permissions,
+            explicitConsent: false,
+            timestamp: new Date().toISOString(),
+            region: cfg.region,
+            gpcApplied: isGpcEnabled()
+        }), expiry);
+        setCookie(GEO_COOKIE_NAME, cfg.region, expiry);
     }
 
     /* setCookieHostOnly, used only for the migration delete step that
@@ -1157,6 +1200,38 @@
        BANNER ACTIONS
        ═══════════════════════════════════════════════ */
 
+    /* ---------------------------------------------
+       RELOAD ON CONSENT (v1.6.0, Pro+)
+       --------------------------------------------- */
+
+    var RELOAD_AFTER_CONSENT_DELAY = 400;   // ms; exceeds the 200ms sendConsentEvents delay so dataLayer events fire + sendBeacon flushes before nav
+    var RELOAD_GUARD_KEY = 'beexyConsentReloadScheduled';
+    var RELOAD_GUARD_WINDOW_MS = 10000;     // short-lived guard; generously exceeds a reload+init cycle. Real loop-safety is structural (returning-visitor branch never calls handleConsent); this is defense in depth.
+
+    // Pure (logic-identical to test/unit/shouldScheduleReload.fixture.js)
+    function isReloadGuardActive(storedRaw, nowMs, windowMs) {
+        if (!storedRaw) return false;
+        var ts = parseInt(storedRaw, 10);
+        if (isNaN(ts)) return false;
+        return (nowMs - ts) < windowMs;
+    }
+
+    function shouldScheduleReload(reloadFlag, storedGuardRaw, nowMs, windowMs) {
+        if (reloadFlag !== true) return false;
+        return !isReloadGuardActive(storedGuardRaw, nowMs, windowMs);
+    }
+
+    // Impure sessionStorage I/O (house try/catch style, per the expired-event guard)
+    function readReloadGuard() {
+        try { return window.sessionStorage.getItem(RELOAD_GUARD_KEY); }
+        catch (e) { return null; }
+    }
+
+    function markReloadScheduled(nowMs) {
+        try { window.sessionStorage.setItem(RELOAD_GUARD_KEY, String(nowMs)); }
+        catch (e) {}
+    }
+
     function handleConsent(type) {
         var permissions = { necessary: true };
         var toggles = document.querySelectorAll('.beexy-consent-toggle');
@@ -1196,6 +1271,23 @@
         logConsent(type, permissions);
 
         window.beexyConsent = consentState;
+
+        // v1.6.0: reload once so every tag measures this page under the chosen
+        // consent (query + hash preserved). Deferred past the 200ms dataLayer
+        // events + sendBeacon flush. Loop-safe: the reloaded page takes the
+        // returning-visitor branch, which never calls handleConsent. The
+        // readCookie precondition skips the reload when the consent cookie did
+        // not persist (fully storage-denied context), so it cannot loop where
+        // consent can never stick.
+        if (cfg.reloadOnConsent && readCookie(cfg.cookieName)) {
+            var reloadNow = new Date().getTime();
+            if (shouldScheduleReload(cfg.reloadOnConsent, readReloadGuard(), reloadNow, RELOAD_GUARD_WINDOW_MS)) {
+                markReloadScheduled(reloadNow);
+                setTimeout(function () {
+                    try { window.location.reload(); } catch (e) {}
+                }, RELOAD_AFTER_CONSENT_DELAY);
+            }
+        }
     }
 
     /* ═══════════════════════════════════════════════
@@ -1509,11 +1601,18 @@
                     }
                 }
                 autoShowOrSuppress();
-            } else {
+            } else if (isExplicitConsent(parsed)) {
                 consentState = parsed;
                 window.beexyConsent = consentState;
                 showWidget();
                 sendConsentEvents('existing', parsed.permissions);
+            } else {
+                /* Non-explicit provisional cookie (Beexy Pixel fallback or the
+                   banner's own region default, or a stale one). NOT a user
+                   choice: do not replay it as consent. The grant block already
+                   applied the region default; show the banner so the visitor can
+                   choose / opt out. #44. */
+                autoShowOrSuppress();
             }
         } catch (e) {
             autoShowOrSuppress();
@@ -2907,11 +3006,23 @@
                 defaultState.wait_for_update = window.beexyConsentWaitForUpdate || (globalConfig.consentMode && globalConfig.consentMode.waitForUpdate) || 500;
                 gtag('consent', 'default', defaultState);
             } else {
-                var existingCookie = readCookie(cfg.cookieName);
-                if (!existingCookie) {
+                var existingRaw = readCookie(cfg.cookieName);
+                var existingParsed = null;
+                if (existingRaw) {
+                    try { existingParsed = JSON.parse(existingRaw); } catch (e) { existingParsed = null; }
+                }
+                /* Apply the region default whenever there is no EXPLICIT consent
+                   yet. A provisional cookie (Pixel fallback / stale) is overruled
+                   100%. needsUpdate is true only for granted (opt-out) defaults, so
+                   opt-in writes nothing pre-consent. The none model (showBanner
+                   false) is EXCLUDED here: its dedicated auto-grant block below owns
+                   that path and must fire 'auto-grant', not read a provisional cookie
+                   this block would otherwise have written first. #44. */
+                if (!isExplicitConsent(existingParsed) && getMode().showBanner !== false) {
                     var needsUpdate = defaults.preferences || defaults.analytics || defaults.marketing;
                     if (needsUpdate) {
                         updateConsentMode(defaults);
+                        writeProvisionalConsent(defaults);
                     }
                 }
             }
