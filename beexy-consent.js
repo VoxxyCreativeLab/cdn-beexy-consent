@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.7.1';
+    var BANNER_VERSION = '1.8.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -247,6 +247,17 @@
             .replace(/[\u200B-\u200D\u2060\uFEFF\u00A0]/g, '')
             .replace(/[\u0000-\u001F\u007F]/g, '')
             .trim();
+    }
+
+    /* originAndPath | minimise a location to scheme + host + path for the
+       consent-log pageUrl: drops the query string (gclid / gbraid / wbraid /
+       fbclid / msclkid + UTMs + any query PII) and the hash. Data
+       minimisation (GDPR Art. 5(1)(c)): the page identity is the consent
+       proof context, ad-click identifiers are not. ES5-safe (no reliance on
+       location.origin). Logic-identical to test/unit/originAndPath.fixture.js
+       (mirror changes in the same commit). */
+    function originAndPath(loc) {
+        return loc.protocol + '//' + loc.host + loc.pathname;
     }
 
     /* ═══════════════════════════════════════════════
@@ -1068,6 +1079,57 @@
         document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax' + secure + domain;
     }
 
+    /* ─────────────────────────────────────────────
+       CONSENT ID (pseudonymous "who" for the audit record)
+       A random per-device id, written into the beexy_consent cookie (as
+       `cid`) and echoed in every consent-log payload (as `consentId`), so a
+       stored consent can be tied to its server-side audit row for GDPR
+       Art. 7 proof-of-consent. Not PII, not a security token: a UUID from
+       crypto.randomUUID (Math.random v4 fallback) is sufficient, and data
+       minimisation (Art. 5(1)(c)) is why we log an id, never an IP or UA.
+       Adding this cookie field does NOT change cfg.version, so no existing
+       cookie is invalidated (CLAUDE.md Rule 10). uuidV4Fallback is the
+       logic-identical companion to test/unit/consentId.fixture.js (mirror
+       changes in the same commit). ───── */
+    var consentId = null;
+
+    function uuidV4Fallback() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0;
+            var v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    function generateConsentId() {
+        try {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+        } catch (e) { /* fall through to Math.random path */ }
+        return uuidV4Fallback();
+    }
+
+    /* Returns this device's consent id, minting one on first use. Reuses an
+       id already stored in the cookie so the record stays stable across
+       re-consent and provisional->explicit transitions. Order-independent:
+       reads the cookie only when the in-memory cache is empty. */
+    function getOrCreateConsentId() {
+        if (consentId) return consentId;
+        try {
+            var raw = readCookie(cfg.cookieName);
+            if (raw) {
+                var parsed = JSON.parse(raw);
+                if (parsed && typeof parsed.cid === 'string' && parsed.cid) {
+                    consentId = parsed.cid;
+                    return consentId;
+                }
+            }
+        } catch (e) { /* unreadable/legacy cookie: mint a fresh id below */ }
+        consentId = generateConsentId();
+        return consentId;
+    }
+
     /* writeProvisionalConsent(permissions) | persist a NON-explicit consent
        record reflecting the resolved region default, so downstream first-party
        readers (Webloader _bx_*, Pixel) see the region-appropriate state
@@ -1081,6 +1143,7 @@
         consentState.explicitConsent = false;
         window.beexyConsent = consentState;
         setCookie(cfg.cookieName, JSON.stringify({
+            cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
             explicitConsent: false,
@@ -1183,13 +1246,19 @@
         if (!cfg.logEndpoint) return;
         try {
             var payload = JSON.stringify({
-                timestamp: new Date().toISOString(),
-                action: type,
-                permissions: permissions,
-                bannerVersion: BANNER_VERSION,
-                gpcEnabled: isGpcEnabled(),
+                consentId: getOrCreateConsentId(),                             // WHO (also in cookie as `cid`)
+                timestamp: new Date().toISOString(),                          // WHEN
+                action: type,                                                 // HOW (mechanism)
+                consentModel: getModelName(),                                 // regime: opt-in/opt-out/opt-out-gpc/none
                 region: cfg.region,
-                pageUrl: location.href
+                language: resolvedLang,                                       // WHAT-told (locale shown)
+                permissions: permissions,                                     // the specific choices
+                explicitConsent: (type !== 'expired'),                        // real choice vs re-prompt trigger
+                gpcEnabled: isGpcEnabled(),
+                bannerVersion: BANNER_VERSION,
+                configVersion: (globalConfig && globalConfig.configVersion) || '',    // WHAT-told (legal config version)
+                configLastUpdated: (globalConfig && globalConfig.lastUpdated) || '',  // WHAT-told (legal text date)
+                pageUrl: originAndPath(location)                              // scheme+host+path only (no query/hash): data minimisation
             });
             if (navigator.sendBeacon) {
                 navigator.sendBeacon(cfg.logEndpoint, payload);
@@ -1262,6 +1331,7 @@
 
         var consentExpiry = getConsentExpiry();
         setCookie(cfg.cookieName, JSON.stringify({
+            cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
             explicitConsent: true,
@@ -3055,6 +3125,7 @@
                 window.beexyConsent = consentState;
                 var autoGrantExpiry = getConsentExpiry();
                 setCookie(cfg.cookieName, JSON.stringify({
+                    cid: getOrCreateConsentId(),
                     version: consentState.version,
                     permissions: allGranted,
                     explicitConsent: false,
@@ -3356,6 +3427,7 @@
                 window.beexyConsent = consentState;
                 var apiExpiry = getConsentExpiry();
                 setCookie(cfg.cookieName, JSON.stringify({
+                    cid: getOrCreateConsentId(),
                     version: consentState.version,
                     permissions: consentState.permissions,
                     explicitConsent: true,
