@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.8.0';
+    var BANNER_VERSION = '1.8.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -2019,6 +2019,156 @@
             '</div>';
     }
 
+    /**
+     * scopeBannerCss | host-CSS isolation (CI-2b, v1.x). Raises the banner
+     * stylesheet's specificity by scoping every DIALOG rule under the banner id
+     * (#beexyConsentBanner .x = specificity 1,1,0) so host rules without an id
+     * (e.g. Elementor's `.kit button` = 0,1,1) can no longer win. Left
+     * untouched: the scope id itself (already-scoped rules), the external
+     * element ids (widget/overlay/container), :root / @import / @keyframes /
+     * @font-face, and html-rooted rules. @media / @supports are recursed into.
+     * String- and comment-aware. Pure; unit-tested in
+     * test/unit/scopeBannerCss.{test,fixture}.js (mirror any change there in
+     * the same commit).
+     */
+    function scopeBannerCss(css, scopeId, externalIds) {
+        var leaveIds = [scopeId].concat(externalIds || []);
+        var scopePrefix = '#' + scopeId;
+
+        function isBoundary(ch) { return ch === undefined || ch === '' || !/[A-Za-z0-9_-]/.test(ch); }
+
+        function startsWithLeaveId(c) {
+            for (var k = 0; k < leaveIds.length; k++) {
+                var tok = '#' + leaveIds[k];
+                if (c.slice(0, tok.length) === tok && isBoundary(c.charAt(tok.length))) return true;
+            }
+            return false;
+        }
+
+        function scopeCore(c) {
+            if (c === '') return c;
+            if (startsWithLeaveId(c)) return c;
+            if (/^html\b/.test(c) || /^:root\b/.test(c)) return c;
+            if (/^\.beexy-consent-/.test(c)) return scopePrefix + ' ' + c;
+            if (/^\.beexy-consent(?![\w-])/.test(c)) return c.replace(/^\.beexy-consent/, scopePrefix);
+            if (c.charAt(0) === '#') return scopePrefix + ' ' + c;
+            return c;
+        }
+
+        function skipString(s, i) {
+            var q = s.charAt(i); i++;
+            while (i < s.length) {
+                if (s.charAt(i) === '\\') { i += 2; continue; }
+                if (s.charAt(i) === q) return i + 1;
+                i++;
+            }
+            return i;
+        }
+        function skipComment(s, i) {
+            i += 2;
+            while (i < s.length && !(s.charAt(i) === '*' && s.charAt(i + 1) === '/')) i++;
+            return i + 2;
+        }
+        function readWsAndComments(s, i) {
+            while (i < s.length) {
+                if (/\s/.test(s.charAt(i))) { i++; continue; }
+                if (s.charAt(i) === '/' && s.charAt(i + 1) === '*') { i = skipComment(s, i); continue; }
+                break;
+            }
+            return i;
+        }
+        function findMatchingBrace(s, open) {
+            var depth = 0, i = open;
+            while (i < s.length) {
+                var ch = s.charAt(i);
+                if (ch === '"' || ch === "'") { i = skipString(s, i); continue; }
+                if (ch === '/' && s.charAt(i + 1) === '*') { i = skipComment(s, i); continue; }
+                if (ch === '{') depth++;
+                else if (ch === '}') { depth--; if (depth === 0) return i; }
+                i++;
+            }
+            return s.length - 1;
+        }
+        function findPreludeEnd(s, i) {
+            while (i < s.length) {
+                var ch = s.charAt(i);
+                if (ch === '"' || ch === "'") { i = skipString(s, i); continue; }
+                if (ch === '/' && s.charAt(i + 1) === '*') { i = skipComment(s, i); continue; }
+                if (ch === '{' || ch === ';') return i;
+                i++;
+            }
+            return s.length;
+        }
+        function atName(s, i) {
+            var m = s.slice(i + 1).match(/^[A-Za-z-]+/);
+            return m ? m[0].toLowerCase() : '';
+        }
+
+        function splitSelectorList(sel) {
+            var parts = [], dp = 0, db = 0, i = 0, start = 0;
+            while (i < sel.length) {
+                var ch = sel.charAt(i);
+                if (ch === '"' || ch === "'") { i = skipString(sel, i); continue; }
+                if (ch === '/' && sel.charAt(i + 1) === '*') { i = skipComment(sel, i); continue; }
+                if (ch === '(') dp++;
+                else if (ch === ')') dp--;
+                else if (ch === '[') db++;
+                else if (ch === ']') db--;
+                else if (ch === ',' && dp === 0 && db === 0) { parts.push(sel.slice(start, i)); start = i + 1; }
+                i++;
+            }
+            parts.push(sel.slice(start));
+            return parts;
+        }
+
+        function scopeSelector(sel) {
+            var parts = splitSelectorList(sel);
+            for (var i = 0; i < parts.length; i++) {
+                var seg = parts[i];
+                var lead = seg.match(/^(?:\s|\/\*[\s\S]*?\*\/)*/)[0];
+                var rest = seg.slice(lead.length);
+                var trail = rest.match(/\s*$/)[0];
+                var core = rest.slice(0, rest.length - trail.length);
+                parts[i] = lead + scopeCore(core) + trail;
+            }
+            return parts.join(',');
+        }
+
+        function scopeBlock(s) {
+            var out = '', i = 0, n = s.length;
+            while (i < n) {
+                var j = readWsAndComments(s, i);
+                out += s.slice(i, j); i = j;
+                if (i >= n) break;
+                if (s.charAt(i) === '@') {
+                    var name = atName(s, i);
+                    var pe = findPreludeEnd(s, i);
+                    if (pe >= n || s.charAt(pe) === ';') {
+                        var end = pe < n ? pe + 1 : n;
+                        out += s.slice(i, end); i = end;
+                    } else {
+                        var be = findMatchingBrace(s, pe);
+                        if (name === 'media' || name === 'supports' || name === 'document' || name === 'container') {
+                            out += s.slice(i, pe + 1) + scopeBlock(s.slice(pe + 1, be)) + '}';
+                        } else {
+                            out += s.slice(i, be + 1);
+                        }
+                        i = be + 1;
+                    }
+                } else {
+                    var pe2 = findPreludeEnd(s, i);
+                    if (pe2 >= n || s.charAt(pe2) !== '{') { out += s.slice(i); break; }
+                    var be2 = findMatchingBrace(s, pe2);
+                    out += scopeSelector(s.slice(i, pe2)) + s.slice(pe2, be2 + 1);
+                    i = be2 + 1;
+                }
+            }
+            return out;
+        }
+
+        return scopeBlock(css);
+    }
+
     function createBannerHTML() {
         var defaults = getEffectiveDefaults();
         var model = getMode();
@@ -2080,7 +2230,7 @@
         }
 
         var privacyLink = cfg.privacyPolicyUrl
-            ? ' ' + getText('about.privacyLink').replace('{link}', '<a href="' + cfg.privacyPolicyUrl + '" target="_blank" rel="noopener" style="color:var(--beexy-consent-text);text-decoration:underline;">' + getText('about.privacyLinkText') + '</a>')
+            ? ' ' + getText('about.privacyLink').replace('{link}', '<a href="' + cfg.privacyPolicyUrl + '" target="_blank" rel="noopener" style="color:var(--beexy-consent-text) !important;text-decoration:underline;">' + getText('about.privacyLinkText') + '</a>')
             : '';
 
         var controllerText = cfg.dataController
@@ -2128,7 +2278,7 @@
         var radiusMap = { pill: ['40px', '24px', '20px'], rounded: ['20px', '12px', '9px'], soft: ['8px', '6px', '4px'], sharp: ['2px', '2px', '1px'] };
         var radii = radiusMap[cfg.cornerStyle] || radiusMap.rounded;
 
-        var html = '<style>' +
+        var css = '' +
             fontCSS +
 
             ':root {' +
@@ -2225,10 +2375,17 @@
                 'display: none;' +
             '}' +
 
-            '/* CSS isolation, block host page interference */' +
+            /* CSS isolation (CI-2). scopeBannerCss id-scopes these selectors so
+               they outrank host rules that lack an id; all:revert then strips
+               host non-important styling (now that it wins on specificity); the
+               font-family !important pin blocks host inheritance + host
+               !important on the one property that is safe to force banner-wide.
+               color / line-height / letter-spacing vary per element and are
+               pinned on their own rules, not here. */
             '.beexy-consent, .beexy-consent *, .beexy-consent *::before, .beexy-consent *::after {' +
                 'all: revert;' +
                 'box-sizing: border-box;' +
+                'font-family: var(--beexy-consent-font) !important;' +
             '}' +
 
             '.beexy-consent {' +
@@ -2406,6 +2563,24 @@
                 : ''
             ) +
 
+            /* CI-2d (host !important defense). Tabs are <button>, so a host
+               `button { … !important }` repaints the whole nav bar. Re-pin the
+               tab surface/text/casing (inactive) and the active-tab bg/text
+               with !important. Values mirror the tab rules above. */
+            (function () {
+                var aBg = cfg.buttonStyle === 'outline' ? 'transparent' : 'var(--beexy-consent-primary)';
+                var aFg = cfg.buttonStyle === 'outline' ? 'var(--beexy-consent-btn-outline)' : 'var(--beexy-consent-btn-text)';
+                return '.beexy-consent-tab {' +
+                        'background: var(--beexy-consent-surface) !important;' +
+                        'color: var(--beexy-consent-text-dim) !important;' +
+                        'text-transform: none !important;' +
+                    '}' +
+                    '.beexy-consent-tab.active {' +
+                        'background: ' + aBg + ' !important;' +
+                        'color: ' + aFg + ' !important;' +
+                    '}';
+            })() +
+
             '.beexy-consent-content {' +
                 'padding: var(--beexy-consent-d-pad-y) var(--beexy-consent-d-pad-x);' +
                 'min-height: 0;' +
@@ -2422,7 +2597,7 @@
                 'font-family: var(--beexy-consent-font);' +
                 'font-size: var(--beexy-consent-d-title-size);' +
                 'font-weight: 700;' +
-                'color: var(--beexy-consent-text);' +
+                'color: var(--beexy-consent-text) !important;' + /* CI-2d: beat host h1-6{color!important} */
                 'margin-bottom: var(--beexy-consent-d-title-mb);' +
                 'letter-spacing: -0.3px;' +
                 'line-height: 1.2;' +
@@ -2430,7 +2605,7 @@
             '.beexy-consent-text {' +
                 'font-size: var(--beexy-consent-d-body-size);' +
                 'line-height: var(--beexy-consent-d-body-lh);' +
-                'color: var(--beexy-consent-text-dim);' +
+                'color: var(--beexy-consent-text-dim) !important;' + /* CI-2d: beat host p{color!important} */
                 'margin-bottom: 0;' +
             '}' +
 
@@ -2443,7 +2618,7 @@
                 'margin: 0 0 8px;' +
                 'font-family: var(--beexy-consent-font);' +
                 'font-size: 12px;' +
-                'color: var(--beexy-consent-primary);' +
+                'color: var(--beexy-consent-primary) !important;' + /* CI-2d: beat host a{color!important} */
                 'text-decoration: none;' +
                 'font-weight: 600;' +
                 'letter-spacing: 0.2px;' +
@@ -2678,6 +2853,40 @@
                   '}'
             ) +
 
+            /* CI-2d (host !important defense; evidence: test/test-hostile-css.html
+               #important). Re-pin the ACTIVE button style's visual identity
+               (bg / text / border / casing) with !important so a host rule like
+               `button { background: ... !important }` cannot repaint our buttons.
+               Values mirror the variant block above -- keep in sync. Padding is
+               deliberately NOT pinned so the density @media overrides keep
+               working. The secondary-button block below re-overrides bg/color/
+               border for deny-in-opt-out (it sits later, so it still wins). */
+            (function () {
+                var bg, fg, bd, bgH, bdH;
+                if (cfg.buttonStyle === 'outline') {
+                    bg = 'transparent'; fg = 'var(--beexy-consent-btn-outline)'; bd = 'var(--beexy-consent-btn-outline)';
+                    bgH = oRgba(0.15); bdH = 'var(--beexy-consent-btn-outline)';
+                } else if (cfg.buttonStyle === 'filled-outline') {
+                    bg = 'var(--beexy-consent-primary)'; fg = 'var(--beexy-consent-btn-text)'; bd = 'var(--beexy-consent-btn-text)';
+                    bgH = 'var(--beexy-consent-primary-dark)'; bdH = 'var(--beexy-consent-btn-text)';
+                } else {
+                    bg = 'var(--beexy-consent-primary)'; fg = 'var(--beexy-consent-btn-text)'; bd = 'var(--beexy-consent-primary)';
+                    bgH = 'var(--beexy-consent-primary-dark)'; bdH = 'var(--beexy-consent-primary-dark)';
+                }
+                return '.beexy-consent-btn {' +
+                        'background: ' + bg + ' !important;' +
+                        'color: ' + fg + ' !important;' +
+                        'border-color: ' + bd + ' !important;' +
+                        'border-style: solid !important;' +
+                        'border-width: var(--beexy-consent-border-width) !important;' +
+                        'text-transform: none !important;' +
+                    '}' +
+                    '.beexy-consent-btn:hover {' +
+                        'background: ' + bgH + ' !important;' +
+                        'border-color: ' + bdH + ' !important;' +
+                    '}';
+            })() +
+
             /* Secondary button: outline style for non-primary actions in opt-out regions.
                Filled style: use primary color (ghost of the filled button).
                Outline/filled-outline: use btn-outline color (consistent with overall style). */
@@ -2891,8 +3100,15 @@
                 'clip: rect(0,0,0,0);' +
                 'white-space: nowrap; border: 0;' +
             '}' +
+            '';
 
-        '</style>';
+        /* Host-CSS isolation (CI-2): id-scope every dialog rule under the
+           banner id so host selectors without an id cannot outrank us. The
+           reset + per-element !important pins (below, in the css string) handle
+           inheritance and host !important. See scopeBannerCss + plan CI-2. */
+        var html = '<style>' +
+            scopeBannerCss(css, cfg.bannerId, [cfg.widgetId, cfg.overlayId, cfg.containerId]) +
+            '</style>';
 
         /* Build dynamic category HTML for Details panel */
         var categoriesHTML = '';
