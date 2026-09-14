@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.8.1';
+    var BANNER_VERSION = '1.9.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -1359,6 +1359,13 @@
             var reloadNow = new Date().getTime();
             if (shouldScheduleReload(cfg.reloadOnConsent, readReloadGuard(), reloadNow, RELOAD_GUARD_WINDOW_MS)) {
                 markReloadScheduled(reloadNow);
+                // HD-0003-04 / hub DR-18/DR-19: set a transient, server-readable, single-use
+                // reload-dedup flag immediately before the reload. The reload's page_view carries
+                // _bx_reload to sGTM; the Beexy Pixel (0009) forwards it as bx_reload then deletes
+                // it, and BigQuery drops the pre-reload page_view (the 0015 _bx_pc counter, when it
+                // ships, gates off the same signal). Session cookie at the eTLD+1 root (setCookie's
+                // default scope) so a server-side loader on a subdomain reads it.
+                setCookie('_bx_reload', '1');
                 setTimeout(function () {
                     try { window.location.reload(); } catch (e) {}
                 }, RELOAD_AFTER_CONSENT_DELAY);
