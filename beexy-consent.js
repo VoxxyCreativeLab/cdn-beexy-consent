@@ -21,7 +21,7 @@
        HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
        @v1 alias is load-bearing across every live install. See CLAUDE.md
        Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.9.0';
+    var BANNER_VERSION = '1.10.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -41,6 +41,7 @@
        window.beexyConsentLogoUrl         = 'https://example.com/logo.png';
        window.beexyConsentFontUrl         = 'https://example.com/fonts/plus-jakarta-sans.css';
        window.beexyConsentLogEndpoint     = 'https://api.example.com/consent-log';
+       window.beexyConsentLogExpired      = false;       // opt-in: also log the on-load 'expired' re-prompt (default off)
        window.beexyConsentPrimaryColor    = '#0b4650';   // buttons, tabs, active states
        // button text auto-computed from primary luminance
        window.beexyConsentBgColor         = '#f9f7f2';   // banner background
@@ -433,6 +434,14 @@
         fontUrl: window.beexyConsentFontUrl || '',
         fontFamily: window.beexyConsentFontFamily || '',
         logEndpoint: window.beexyConsentLogEndpoint || '',
+        /* Sheet-log the on-load 'expired' re-prompt? Default OFF (strict
+           === true so an un-injected var reads undefined -> false). 'expired'
+           is a system re-prompt trigger, not a consent decision
+           (explicitConsent=false), so it is not required for Art. 7 proof and
+           only inflates the log; opt in for expiry telemetry. The dataLayer
+           'expired' event is unaffected either way. See
+           docs/references/consent-log-schema.md. */
+        logExpired: window.beexyConsentLogExpired === true,
         primaryColor: window.beexyConsentPrimaryColor || '#0b4650',
         // accentColor removed, button text is auto-computed from primary luminance
         bgColor: window.beexyConsentBgColor || '#f9f7f2',
@@ -1674,7 +1683,14 @@
                         analytics: false,
                         marketing: false
                     });
-                    logConsent('expired', parsed.permissions);
+                    /* Sheet-log the re-prompt only when opted in (cfg.logExpired,
+                       default OFF). 'expired' is not a consent decision, so by
+                       default it stays out of the Art. 7 proof log (data
+                       minimisation); the dataLayer 'expired' event above still
+                       fires, so GTM triggers are unaffected. */
+                    if (cfg.logExpired) {
+                        logConsent('expired', parsed.permissions);
+                    }
                     try {
                         window.sessionStorage.setItem('beexyConsentExpiredEventFired', '1');
                     } catch (storageErr) {
