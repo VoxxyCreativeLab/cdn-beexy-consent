@@ -18,10 +18,12 @@
        beexyConsentAPI. NOT the cookie schema version: that is cfg.version
        (frozen at '1'). See CLAUDE.md Rule 10 and src/banner/CONTEXT.md
        for the do-not-touch rationale.
-       HARD RULE: the MAJOR stays '1' forever. Never '2.x'. The jsDelivr
-       @v1 alias is load-bearing across every live install. See CLAUDE.md
-       Rule 11 and LESSONS.md (2026-05-29 incident). */
-    var BANNER_VERSION = '1.10.0';
+       HARD RULE: the MAJOR stays '1' forever. Never '2.x'. Consumers pin
+       the jsDelivr @1.x range, which floats across 1.y.z but can never
+       reach 2.x (a literal @v1 tag is an immutable pin, not a floating
+       alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
+       2026-09-18 immutable-pin correction). */
+    var BANNER_VERSION = '1.10.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -63,7 +65,7 @@
         white:  '#fefdfc'
     };
 
-    var VOXXY_BADGE_LOGO = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/assets/voxxy-badge-logo.svg';
+    var VOXXY_BADGE_LOGO = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@1.x/assets/voxxy-badge-logo.svg';
     var VOXXY_URL = 'https://voxxycreativelab.com';
     var isAgency = (window.beexyConsentAgencyLogoUrl !== undefined);
 
@@ -344,7 +346,7 @@
     var purposeTranslations = null;
     var purposesRequested = false;
 
-    var PURPOSES_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/cookie-purposes/';
+    var PURPOSES_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@1.x/cookie-purposes/';
 
     function getDurationLex() {
         var texts = (globalConfig && globalConfig.texts) || {};
@@ -689,9 +691,9 @@
        Priority: window.beexyConsentConfig > window.beexyConsentConfigUrl > CDN
        ═══════════════════════════════════════════════ */
 
-    var CONFIG_CDN_URL = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/beexy-global.json';
-    var LANG_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/lang/';
-    var COOKIES_TIER_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@v1/cookies-';
+    var CONFIG_CDN_URL = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@1.x/beexy-global.json';
+    var LANG_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@1.x/lang/';
+    var COOKIES_TIER_CDN_BASE = 'https://cdn.jsdelivr.net/gh/VoxxyCreativeLab/cdn-beexy-consent@1.x/cookies-';
     var GEO_ENDPOINT_URL = 'https://beexy-geo.voxxycreativelab.workers.dev';
     var GEO_COOKIE_NAME = 'beexy_geo';
     var GEO_COOKIE_EXPIRY = 30; // days (before consent; synced to consent expiry after)
