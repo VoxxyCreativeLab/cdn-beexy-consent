@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.10.1';
+    var BANNER_VERSION = '1.10.2';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -1328,7 +1328,7 @@
             } else if (type === 'deny-all' && cat !== 'necessary') {
                 permissions[cat] = false;
             } else {
-                permissions[cat] = toggles[i].classList.contains('active');
+                permissions[cat] = toggles[i].classList.contains('beexy-consent-active');
             }
         }
         permissions.necessary = true;
@@ -1459,13 +1459,13 @@
             if (consentState.permissions) {
                 var toggles = document.querySelectorAll('.beexy-consent-toggle');
                 for (var i = 0; i < toggles.length; i++) {
-                    if (toggles[i].classList.contains('disabled')) continue;
+                    if (toggles[i].classList.contains('beexy-consent-disabled')) continue;
                     var cat = toggles[i].getAttribute('data-category');
                     if (consentState.permissions[cat]) {
-                        toggles[i].classList.add('active');
+                        toggles[i].classList.add('beexy-consent-active');
                         toggles[i].setAttribute('aria-checked', 'true');
                     } else {
-                        toggles[i].classList.remove('active');
+                        toggles[i].classList.remove('beexy-consent-active');
                         toggles[i].setAttribute('aria-checked', 'false');
                     }
                 }
@@ -1532,15 +1532,15 @@
     function switchTab(tab) {
         var panels = document.querySelectorAll('.beexy-consent-panel');
         var tabs = document.querySelectorAll('.beexy-consent-tab');
-        for (var i = 0; i < panels.length; i++) panels[i].classList.remove('active');
-        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('active');
+        for (var i = 0; i < panels.length; i++) panels[i].classList.remove('beexy-consent-active');
+        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('beexy-consent-active');
 
         var panel = document.getElementById(tab + 'Panel');
-        if (panel) panel.classList.add('active');
+        if (panel) panel.classList.add('beexy-consent-active');
 
         for (var k = 0; k < tabs.length; k++) {
             if (tabs[k].getAttribute('data-tab') === tab) {
-                tabs[k].classList.add('active');
+                tabs[k].classList.add('beexy-consent-active');
                 break;
             }
         }
@@ -1584,19 +1584,19 @@
 
     function toggleSwitch(toggle, event) {
         if (event) event.stopPropagation();
-        if (toggle.classList.contains('disabled')) return;
-        toggle.classList.toggle('active');
-        toggle.setAttribute('aria-checked', toggle.classList.contains('active') ? 'true' : 'false');
+        if (toggle.classList.contains('beexy-consent-disabled')) return;
+        toggle.classList.toggle('beexy-consent-active');
+        toggle.setAttribute('aria-checked', toggle.classList.contains('beexy-consent-active') ? 'true' : 'false');
         updateDetailsBtns();
     }
 
     function updateDetailsBtns() {
-        var toggles = document.querySelectorAll('.beexy-consent-toggle:not(.disabled)');
+        var toggles = document.querySelectorAll('.beexy-consent-toggle:not(.beexy-consent-disabled)');
         var allActive = true;
         var noneActive = true;
         for (var i = 0; i < toggles.length; i++) {
-            if (!toggles[i].classList.contains('active')) { allActive = false; }
-            if (toggles[i].classList.contains('active')) { noneActive = false; }
+            if (!toggles[i].classList.contains('beexy-consent-active')) { allActive = false; }
+            if (toggles[i].classList.contains('beexy-consent-active')) { noneActive = false; }
         }
         if (getModelName() === 'opt-in') {
             /* 3-button layout: enable "Allow selection" when any non-necessary toggle is on */
@@ -2395,7 +2395,7 @@
                 'position: fixed;' +
                 'top: 0; left: 0;' +
                 'width: 100%; height: 100%;' +
-                'background: ' + pRgba(0.4) + ';' +
+                'background: ' + pRgba(0.4) + ' !important;' +
                 'z-index: 2147483646;' +
                 'display: none;' +
             '}' +
@@ -2434,7 +2434,7 @@
                 'width: var(--beexy-consent-d-banner-width);' +
                 'max-width: calc(100vw - 32px);' +
                 'max-height: calc(100dvh - 32px);' +
-                'background: var(--beexy-consent-bg);' +
+                'background: var(--beexy-consent-bg) !important;' +
                 'border-radius: var(--beexy-consent-radius);' +
                 'border: 1px solid var(--beexy-consent-border);' +
                 'font-family: var(--beexy-consent-font);' +
@@ -2567,7 +2567,7 @@
                 'letter-spacing: 0.3px;' +
             '}' +
             '.beexy-consent-tab:hover { background: ' + pRgba(0.12) + '; }' +
-            '.beexy-consent-tab.active {' +
+            '.beexy-consent-tab.beexy-consent-active {' +
                 'background: var(--beexy-consent-primary);' +
                 'color: var(--beexy-consent-btn-text);' +
                 'box-shadow: 0 2px 8px ' + pRgba(0.25) + ';' +
@@ -2575,14 +2575,14 @@
 
             /* Outline mode: active tab also outlined */
             (cfg.buttonStyle === 'outline'
-                ? '.beexy-consent-tab.active {' +
+                ? '.beexy-consent-tab.beexy-consent-active {' +
                       'background: transparent;' +
                       'color: var(--beexy-consent-btn-outline);' +
                       'border: var(--beexy-consent-border-width) solid var(--beexy-consent-btn-outline);' +
                       'box-shadow: none;' +
                   '}'
                 : cfg.buttonStyle === 'filled-outline'
-                ? '.beexy-consent-tab.active {' +
+                ? '.beexy-consent-tab.beexy-consent-active {' +
                       'border: var(--beexy-consent-border-width) solid var(--beexy-consent-btn-text);' +
                   '}'
                 : ''
@@ -2600,7 +2600,7 @@
                         'color: var(--beexy-consent-text-dim) !important;' +
                         'text-transform: none !important;' +
                     '}' +
-                    '.beexy-consent-tab.active {' +
+                    '.beexy-consent-tab.beexy-consent-active {' +
                         'background: ' + aBg + ' !important;' +
                         'color: ' + aFg + ' !important;' +
                     '}';
@@ -2713,7 +2713,7 @@
                 'flex-shrink: 0;' +
                 'border: 1px solid var(--beexy-consent-border);' +
             '}' +
-            '.beexy-consent-toggle.active {' +
+            '.beexy-consent-toggle.beexy-consent-active {' +
                 'background: var(--beexy-consent-primary);' +
                 'border-color: ' + pRgba(0.3) + ';' +
                 'box-shadow: 0 0 14px ' + pRgba(0.2) + ';' +
@@ -2728,15 +2728,15 @@
                 'transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);' +
                 'box-shadow: 0 1px 4px rgba(0,0,0,0.15);' +
             '}' +
-            '.beexy-consent-toggle.active::after {' +
+            '.beexy-consent-toggle.beexy-consent-active::after {' +
                 'transform: translateX(20px);' +
                 'background: var(--beexy-consent-btn-text);' +
             '}' +
             (cfg.buttonStyle === 'outline'
-                ? '.beexy-consent-toggle.active::after { background: var(--beexy-consent-bg); }'
+                ? '.beexy-consent-toggle.beexy-consent-active::after { background: var(--beexy-consent-bg); }'
                 : ''
             ) +
-            '.beexy-consent-toggle.disabled {' +
+            '.beexy-consent-toggle.beexy-consent-disabled {' +
                 'opacity: 0.4;' +
                 'cursor: not-allowed;' +
             '}' +
@@ -2754,7 +2754,7 @@
 
             '.beexy-consent-category-content {' +
                 'padding: var(--beexy-consent-d-pad-y-sm) var(--beexy-consent-d-pad-x-sm);' +
-                'background: var(--beexy-consent-bg);' +
+                'background: var(--beexy-consent-bg) !important;' +
                 'border-top: 1px solid var(--beexy-consent-border);' +
                 'display: none;' +
             '}' +
@@ -2936,8 +2936,8 @@
                   })()
                 : '') +
 
-            '.beexy-consent-panel { display: none; }' +
-            '.beexy-consent-panel.active {' +
+            '.beexy-consent-panel { display: none; background: var(--beexy-consent-bg) !important; }' +
+            '.beexy-consent-panel.beexy-consent-active {' +
                 'display: flex;' +
                 'flex-direction: column;' +
                 'flex: 1;' +
@@ -2950,7 +2950,7 @@
                 'position: fixed;' +
                 'bottom: 12px; ' + cfg.widgetPosition + ': 12px;' +
                 'width: 40px; height: 40px;' +
-                'background: var(--beexy-consent-widget-bg);' +
+                'background: var(--beexy-consent-widget-bg) !important;' +
                 'border: 1px solid var(--beexy-consent-widget-content);' +
                 'border-radius: 50%;' +
                 'cursor: pointer;' +
@@ -3143,8 +3143,8 @@
             var catName = getText('categories.' + cat.key + '.name');
             var catDesc = getText('categories.' + cat.key + '.description');
             var isOn = cat.alwaysOn || defaults[cat.key];
-            var toggleClass = isOn ? ' active' : '';
-            var disabledClass = cat.alwaysOn ? ' disabled' : '';
+            var toggleClass = isOn ? ' beexy-consent-active' : '';
+            var disabledClass = cat.alwaysOn ? ' beexy-consent-disabled' : '';
             var ariaLabel = cat.alwaysOn
                 ? getText('aria.toggleLabelAlwaysOn').replace('{name}', catName)
                 : getText('aria.toggleLabel').replace('{name}', catName);
@@ -3233,13 +3233,13 @@
 
             /* Tabs */
             '<div class="beexy-consent-tabs" role="tablist">' +
-                '<button class="beexy-consent-tab active" role="tab" data-tab="consent" aria-selected="true" aria-controls="consentPanel">' + getText('tabs.consent') + '</button>' +
+                '<button class="beexy-consent-tab beexy-consent-active" role="tab" data-tab="consent" aria-selected="true" aria-controls="consentPanel">' + getText('tabs.consent') + '</button>' +
                 '<button class="beexy-consent-tab" role="tab" data-tab="details" aria-selected="false" aria-controls="detailsPanel">' + getText('tabs.details') + '</button>' +
                 '<button class="beexy-consent-tab" role="tab" data-tab="about" aria-selected="false" aria-controls="aboutPanel">' + getText('tabs.about') + '</button>' +
             '</div>' +
 
             /* ── Consent Panel ── */
-            '<div id="consentPanel" class="beexy-consent-panel active" role="tabpanel">' +
+            '<div id="consentPanel" class="beexy-consent-panel beexy-consent-active" role="tabpanel">' +
                 '<div class="beexy-consent-content">' +
                     '<h5 class="beexy-consent-title" id="beexyConsentTitle">' + getText('banner.title') + '</h5>' +
                     '<p class="beexy-consent-text">' +
@@ -3478,7 +3478,7 @@
                     var nameRect = nameSpan.getBoundingClientRect();
                     if (e.clientX <= nameRect.right) {
                         toggleCategory(this);
-                    } else if (!toggle.classList.contains('disabled')) {
+                    } else if (!toggle.classList.contains('beexy-consent-disabled')) {
                         toggleSwitch(toggle);
                     }
                 });
