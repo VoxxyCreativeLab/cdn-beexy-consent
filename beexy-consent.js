@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.11.0';
+    var BANNER_VERSION = '1.11.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -2951,7 +2951,15 @@
                   })()
                 : '') +
 
-            '.beexy-consent-panel { display: none; background: var(--beexy-consent-bg) !important; }' +
+            /* BACKLOG #66: round the bottom corners to the shell radius so the
+               opaque panel follows the banner's rounded shape (the shell clips
+               with overflow-clip-margin: 8px, which squares its clip, so a
+               square-cornered child would otherwise overflow the rounded border
+               at the bottom corners). Top corners stay square: they sit under the
+               tab strip, mid-shell. Bottom radius tracks the same variable the
+               shell uses, so it matches at every cornerStyle. The background
+               !important pin (host-CSS hardening, #64) is deliberately preserved. */
+            '.beexy-consent-panel { display: none; background: var(--beexy-consent-bg) !important; border-bottom-left-radius: var(--beexy-consent-radius); border-bottom-right-radius: var(--beexy-consent-radius); }' +
             '.beexy-consent-panel.beexy-consent-active {' +
                 'display: flex;' +
                 'flex-direction: column;' +
@@ -3012,6 +3020,11 @@
                     'border-radius: 12px;' +
                     'animation: beexyConsentPopMobile 0.5s cubic-bezier(0.16, 1, 0.3, 1);' +
                 '}' +
+                /* BACKLOG #66: match the panel bottom corners to the shell's
+                   hardcoded 12px mobile radius (the shell forces 12px on mobile
+                   regardless of cornerStyle, so the panel cannot use the desktop
+                   radius variable here). */
+                '.beexy-consent-panel { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }' +
                 '.beexy-consent-content { max-height: none; }' +
                 '.beexy-consent-header, .beexy-consent-content, .beexy-consent-actions, .beexy-consent-dnsmpi {' +
                     'padding-left: var(--beexy-consent-md-pad-x);' +
