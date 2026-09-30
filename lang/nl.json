@@ -22,7 +22,7 @@
     "description": "Cookies zijn kleine tekstbestanden die door websites kunnen worden gebruikt om de gebruikerservaring efficiënter te maken. Volgens de wet mogen wij cookies op uw apparaat opslaan als ze strikt noodzakelijk zijn voor het gebruik van de site. Voor alle andere soorten cookies hebben wij uw toestemming nodig.",
     "privacyLink": "Raadpleeg ons {link} voor meer informatie.",
     "privacyLinkText": "Privacybeleid",
-    "controllerText": "Deze website wordt beheerd door {controller}. Als verwerkingsverantwoordelijke zijn wij verantwoordelijk voor de verwerking van uw persoonsgegevens.",
+    "controllerText": "{controller} is de verwerkingsverantwoordelijke voor de verwerking van uw persoonsgegevens.",
     "featuresLinkText": "Juridische details →"
   },
   "categories": {

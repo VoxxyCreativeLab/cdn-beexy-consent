@@ -22,7 +22,7 @@
     "description": "Cookie 是网站用来提升用户体验的小型文本文件。根据法律规定，如果 Cookie 对本网站的正常运行不可或缺，我们可以将其存储在您的设备上。对于所有其他类型的 Cookie，我们需要征得您的同意。",
     "privacyLink": "如需了解更多信息，请参阅我们的{link}。",
     "privacyLinkText": "隐私政策",
-    "controllerText": "本网站由 {controller} 管理。作为数据控制者，我们负责处理您的个人数据。",
+    "controllerText": "{controller} 是负责处理您个人数据的数据控制者。",
     "featuresLinkText": "法律详情 →"
   },
   "categories": {

@@ -22,7 +22,7 @@
     "description": "Cookies er små tekstfiler, der kan bruges af websites til at gøre brugeroplevelsen mere effektiv. Loven siger, at vi kan gemme cookies på din enhed, hvis de er strengt nødvendige for driften af dette website. For alle andre typer cookies har vi brug for dit samtykke.",
     "privacyLink": "Se vores {link} for mere information.",
     "privacyLinkText": "Privatlivspolitik",
-    "controllerText": "Denne hjemmeside drives af {controller}. Som dataansvarlig er vi ansvarlige for behandlingen af dine personoplysninger.",
+    "controllerText": "{controller} er dataansvarlig for behandlingen af dine personoplysninger.",
     "featuresLinkText": "Juridiske detaljer →"
   },
   "categories": {

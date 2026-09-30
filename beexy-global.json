@@ -270,7 +270,7 @@
         "description": "Cookies are small text files that can be used by websites to make a user experience more efficient. The law states that we can store cookies on your device if they are strictly necessary for the operation of this site. For all other types of cookies we need your permission.",
         "privacyLink": "For more information, see our {link}.",
         "privacyLinkText": "Privacy Policy",
-        "controllerText": "This website is operated by {controller}. As the data controller, we are responsible for the processing of your personal data.",
+        "controllerText": "{controller} is the data controller responsible for the processing of your personal data.",
         "featuresLinkText": "Legal details →"
       },
       "categories": {

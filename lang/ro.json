@@ -22,7 +22,7 @@
     "description": "Cookie-urile sunt fișiere text mici pe care site-urile le pot folosi pentru a face experiența utilizatorului mai eficientă. Legea prevede că putem stoca cookie-uri pe dispozitivul dvs. dacă sunt strict necesare pentru funcționarea acestui site. Pentru toate celelalte tipuri de cookie-uri avem nevoie de consimțământul dvs.",
     "privacyLink": "Pentru mai multe informații, consultați {link} noastră.",
     "privacyLinkText": "Politica de confidențialitate",
-    "controllerText": "Acest site web este operat de {controller}. În calitate de operator de date, suntem responsabili pentru prelucrarea datelor dvs. personale.",
+    "controllerText": "{controller} este operatorul de date responsabil pentru prelucrarea datelor dvs. personale.",
     "featuresLinkText": "Detalii legale →"
   },
   "categories": {

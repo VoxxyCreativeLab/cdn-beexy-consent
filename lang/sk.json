@@ -22,7 +22,7 @@
     "description": "Cookies sú malé textové súbory, ktoré môžu webové stránky používať na zefektívnenie používateľského zážitku. Zákon stanovuje, že na vašom zariadení môžeme ukladať cookies, ak sú nevyhnutne potrebné na prevádzku tejto stránky. Pre všetky ostatné typy cookies potrebujeme váš súhlas.",
     "privacyLink": "Ďalšie informácie nájdete v našich {link}.",
     "privacyLinkText": "Zásadách ochrany osobných údajov",
-    "controllerText": "Túto webovú stránku prevádzkuje {controller}. Ako prevádzkovateľ údajov zodpovedáme za spracovanie vašich osobných údajov.",
+    "controllerText": "{controller} je prevádzkovateľom údajov zodpovedným za spracovanie vašich osobných údajov.",
     "featuresLinkText": "Právne podrobnosti →"
   },
   "categories": {

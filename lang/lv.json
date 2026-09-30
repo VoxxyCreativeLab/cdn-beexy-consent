@@ -22,7 +22,7 @@
     "description": "Sīkdatnes ir nelieli teksta faili, ko vietnes var izmantot, lai padarītu lietotāja pieredzi efektīvāku. Likums nosaka, ka mēs varam saglabāt sīkdatnes jūsu ierīcē, ja tās ir noteikti nepieciešamas šīs vietnes darbībai. Visiem pārējiem sīkdatņu veidiem mums ir nepieciešama jūsu piekrišana.",
     "privacyLink": "Plašāku informāciju skatiet mūsu {link}.",
     "privacyLinkText": "Privātuma politikā",
-    "controllerText": "Šo vietni pārvalda {controller}. Kā datu pārzinis mēs esam atbildīgi par jūsu personas datu apstrādi.",
+    "controllerText": "{controller} ir jūsu personas datu apstrādes pārzinis.",
     "featuresLinkText": "Juridiskā informācija →"
   },
   "categories": {

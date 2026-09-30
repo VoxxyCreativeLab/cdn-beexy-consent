@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.10.2';
+    var BANNER_VERSION = '1.11.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -432,6 +432,13 @@
            (no var injected) reads undefined and resolves to false. */
         reloadOnConsent: window.beexyConsentReloadOnConsent === true,
         dataController: window.beexyConsentDataController || '',
+        /* Hide the About-tab data-controller sentence for parties who are not
+           the controller (e.g. an agency that only logs consent and does not
+           operate the site). Strict === true so an un-injected var (Basic tier
+           / a config predating the toggle) reads undefined -> false -> the line
+           stays shown (backward-compatible). Toggle lives in the template's
+           Consent Logging group, next to the data-controller name field. */
+        hideDataController: window.beexyConsentHideDataController === true,
         logoUrl: cleanUrl(window.beexyConsentLogoUrl),
         fontUrl: window.beexyConsentFontUrl || '',
         fontFamily: window.beexyConsentFontFamily || '',
@@ -667,7 +674,7 @@
                     description: 'Cookies are small text files stored on your device.',
                     privacyLink: 'For more information, see our {link}.',
                     privacyLinkText: 'Privacy Policy',
-                    controllerText: 'This website is operated by {controller}. As the data controller, we are responsible for the processing of your personal data.'
+                    controllerText: '{controller} is the data controller responsible for the processing of your personal data.'
                 },
                 categories: {
                     necessary: { name: 'Necessary', description: 'Required for the website to function.' },
@@ -2258,7 +2265,15 @@
             ? ' ' + getText('about.privacyLink').replace('{link}', '<a href="' + cfg.privacyPolicyUrl + '" target="_blank" rel="noopener" style="color:var(--beexy-consent-text) !important;text-decoration:underline;">' + getText('about.privacyLinkText') + '</a>')
             : '';
 
-        var controllerText = cfg.dataController
+        /* shouldShowController | logic-identical companion in
+           test/unit/shouldShowController.fixture.js — keep the two in sync.
+           Shows the data-controller sentence only when a name is set AND the
+           hide toggle is not strictly true (absent => shown, backward-compatible). */
+        function shouldShowController(dataController, hideDataController) {
+            return !!dataController && hideDataController !== true;
+        }
+
+        var controllerText = shouldShowController(cfg.dataController, cfg.hideDataController)
             ? '<p class="beexy-consent-text" style="margin-top:12px;">' + getText('about.controllerText').replace('{controller}', '<strong>' + cfg.dataController + '</strong>') + privacyLink + '</p>'
             : (privacyLink ? '<p class="beexy-consent-text" style="margin-top:12px;">' + privacyLink.substring(1) + '</p>' : '');
 

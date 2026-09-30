@@ -22,7 +22,7 @@
     "description": "Informasjonskapsler er små tekstfiler som nettsteder kan bruke for å gjøre brukeropplevelsen mer effektiv. Loven sier at vi kan lagre informasjonskapsler på enheten din dersom de er strengt nødvendige for driften av dette nettstedet. For alle andre typer informasjonskapsler trenger vi ditt samtykke.",
     "privacyLink": "Se vår {link} for mer informasjon.",
     "privacyLinkText": "Personvernerklæring",
-    "controllerText": "Dette nettstedet drives av {controller}. Som behandlingsansvarlig er vi ansvarlige for behandlingen av dine personopplysninger.",
+    "controllerText": "{controller} er behandlingsansvarlig for behandlingen av dine personopplysninger.",
     "featuresLinkText": "Juridiske detaljer →"
   },
   "categories": {

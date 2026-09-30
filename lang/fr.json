@@ -22,7 +22,7 @@
     "description": "Les cookies sont de petits fichiers texte qui peuvent être utilisés par les sites web pour rendre l’expérience utilisateur plus efficace. La loi stipule que nous pouvons stocker des cookies sur votre appareil s’ils sont strictement nécessaires au fonctionnement de ce site. Pour tous les autres types de cookies, nous avons besoin de votre autorisation.",
     "privacyLink": "Pour plus d’informations, consultez notre {link}.",
     "privacyLinkText": "Politique de confidentialité",
-    "controllerText": "Ce site web est exploité par {controller}. En tant que responsable du traitement, nous sommes responsables du traitement de vos données personnelles.",
+    "controllerText": "{controller} est le responsable du traitement de vos données personnelles.",
     "featuresLinkText": "Détails juridiques →"
   },
   "categories": {
