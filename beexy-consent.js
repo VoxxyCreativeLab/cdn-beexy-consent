@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.11.1';
+    var BANNER_VERSION = '1.12.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -674,7 +674,8 @@
                     description: 'Cookies are small text files stored on your device.',
                     privacyLink: 'For more information, see our {link}.',
                     privacyLinkText: 'Privacy Policy',
-                    controllerText: '{controller} is the data controller responsible for the processing of your personal data.'
+                    controllerText: '{controller} is the data controller responsible for the processing of your personal data.',
+                    perimeterText: 'Your consent applies across the following sites, operated by the same data controller for the same purposes: {domains}. You can review or withdraw it on any of them.'
                 },
                 categories: {
                     necessary: { name: 'Necessary', description: 'Required for the website to function.' },
@@ -2277,6 +2278,35 @@
             ? '<p class="beexy-consent-text" style="margin-top:12px;">' + getText('about.controllerText').replace('{controller}', '<strong>' + cfg.dataController + '</strong>') + privacyLink + '</p>'
             : (privacyLink ? '<p class="beexy-consent-text" style="margin-top:12px;">' + privacyLink.substring(1) + '</p>' : '');
 
+        /* F2 perimeter disclosure (HD-0003-12, multi-domain increment 1).
+           Built per: docs/superpowers/plans/2026-10-07-f2-perimeter-disclosure.md
+           formatPerimeterDomains | logic-identical companion in
+           test/unit/perimeterDisclosure.fixture.js. Keep the two in sync.
+           Turns the siblingDomains SIMPLE_TABLE rows into the comma-separated
+           perimeter list. Empty => no perimeter line, so single-domain installs
+           (no siblingDomains configured) behave exactly as before F2. */
+        function formatPerimeterDomains(siblingDomains) {
+            if (!Array.isArray(siblingDomains)) return '';
+            var seen = {};
+            var out = [];
+            for (var i = 0; i < siblingDomains.length; i++) {
+                var row = siblingDomains[i];
+                if (!row || typeof row.domain !== 'string') continue;
+                var d = row.domain.trim();
+                if (!d) continue;
+                var key = d.toLowerCase();
+                if (seen[key]) continue;
+                seen[key] = true;
+                out.push(d);
+            }
+            return out.join(', ');
+        }
+
+        var perimeterDomainList = formatPerimeterDomains(window.beexyConsentSiblingDomains);
+        var perimeterText = perimeterDomainList
+            ? '<p class="beexy-consent-text beexy-consent-perimeter" style="margin-top:12px;">' + getText('about.perimeterText').replace('{domains}', '<strong>' + perimeterDomainList + '</strong>') + '</p>'
+            : '';
+
         /* Features link (BACKLOG #4). Small inline link in the About panel,
            below the title and above the description. Hidden gracefully when
            globalConfig.featuresLinkUrl is empty (e.g. config not yet updated). */
@@ -3274,6 +3304,7 @@
                         getText('banner.description') +
                         privacyLink +
                     '</p>' +
+                    perimeterText +
                 '</div>' +
                 '<div class="beexy-consent-actions">' +
                     consentButtons +
@@ -3307,6 +3338,7 @@
                         getText('about.description') +
                     '</p>' +
                     controllerText +
+                    perimeterText +
                 '</div>' +
                 '<div class="beexy-consent-actions">' +
                     consentButtons +

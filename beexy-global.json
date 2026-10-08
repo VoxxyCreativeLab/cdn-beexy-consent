@@ -271,6 +271,7 @@
         "privacyLink": "For more information, see our {link}.",
         "privacyLinkText": "Privacy Policy",
         "controllerText": "{controller} is the data controller responsible for the processing of your personal data.",
+        "perimeterText": "Your consent applies across the following sites, operated by the same data controller for the same purposes: {domains}. You can review or withdraw it on any of them.",
         "featuresLinkText": "Legal details →"
       },
       "categories": {
