@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.12.0';
+    var BANNER_VERSION = '1.13.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -134,9 +134,11 @@
         // Guard 2: IPv6 (brackets or colons).
         if (h.indexOf(':') !== -1 || h.charAt(0) === '[') return null;
 
-        // Guard 3: localhost / *.localhost
-        // 10 = '.localhost'.length
-        if (h === 'localhost' || h.indexOf('.localhost') === h.length - 10) return null;
+        // Guard 3: localhost / *.localhost. Anchored suffix test, NOT
+        // `indexOf('.localhost') === h.length - 10`, which false-positived on ANY
+        // 9-char hostname (indexOf -1 === 9 - 10) and nulled bare apex domains
+        // like brand.com (HD-0003-14 regression; see computeRootDomain.test.js).
+        if (h === 'localhost' || /\.localhost$/.test(h)) return null;
 
         // Guard 4: single-label (no dot).
         if (h.indexOf('.') === -1) return null;
@@ -431,6 +433,11 @@
         /* Reload-on-consent (Pro+ only, v1.6.0). Strict === true so Basic
            (no var injected) reads undefined and resolves to false. */
         reloadOnConsent: window.beexyConsentReloadOnConsent === true,
+        /* Multi-domain consent handoff (HD-0003-14, Pro+). Strict === true so
+           Basic / an un-injected var resolves to false: feature off, and the
+           whole handoff pre-step is skipped (byte-identical to 1.12.0). Default
+           OFF (D-A1-1) pending the DPA / Art. 7 sign-off (design section 10). */
+        crossDomainHandoff: window.beexyConsentCrossDomainHandoff === true,
         dataController: window.beexyConsentDataController || '',
         /* Hide the About-tab data-controller sentence for parties who are not
            the controller (e.g. an agency that only logs consent and does not
@@ -1261,10 +1268,10 @@
        SERVER-SIDE CONSENT LOGGING
        ═══════════════════════════════════════════════ */
 
-    function logConsent(type, permissions) {
+    function logConsent(type, permissions, extra) {
         if (!cfg.logEndpoint) return;
         try {
-            var payload = JSON.stringify({
+            var payloadObj = {
                 consentId: getOrCreateConsentId(),                             // WHO (also in cookie as `cid`)
                 timestamp: new Date().toISOString(),                          // WHEN
                 action: type,                                                 // HOW (mechanism)
@@ -1278,7 +1285,16 @@
                 configVersion: (globalConfig && globalConfig.configVersion) || '',    // WHAT-told (legal config version)
                 configLastUpdated: (globalConfig && globalConfig.lastUpdated) || '',  // WHAT-told (legal text date)
                 pageUrl: originAndPath(location)                              // scheme+host+path only (no query/hash): data minimisation
-            });
+            };
+            /* HD-0003-14: optional provenance marker merged into the LOG payload
+               ONLY (e.g. { source:'handoff', handoffOrigin }). Never written to
+               the beexy_consent cookie, so cfg.version is untouched (Rule 10). */
+            if (extra && typeof extra === 'object') {
+                for (var ek in extra) {
+                    if (Object.prototype.hasOwnProperty.call(extra, ek)) { payloadObj[ek] = extra[ek]; }
+                }
+            }
+            var payload = JSON.stringify(payloadObj);
             if (navigator.sendBeacon) {
                 navigator.sendBeacon(cfg.logEndpoint, payload);
             } else {
@@ -1620,6 +1636,390 @@
     }
 
     /* ═══════════════════════════════════════════════
+       MULTI-DOMAIN CONSENT HANDOFF (HD-0003-14, A1)
+       Built per: docs/superpowers/plans/2026-10-08-handoff-consent-a1.md
+
+       A single controller runs several of its own registrable domains as one
+       tracking setup. On a cross-domain link click we carry the consent
+       decision in a short-lived, keyless, in-band URL token (param bx_hs) so
+       the destination applies it silently instead of re-prompting. Integrity =
+       freshness window + same-browser fingerprint + perimeter-subset +
+       same-controller allowlist, and the destination re-logs its OWN fresh
+       proof (the token is a skip-the-prompt hint, never the Art. 7 proof).
+       cfg.version is untouched (Rule 10); the beexy_consent schema does not
+       change. Pure helpers below are logic-identical companions to
+       test/unit/handoff{Fingerprint,Token,Validate,Perimeter}.fixture.js;
+       mirror any change in the same commit.
+       ═══════════════════════════════════════════════ */
+
+    var HANDOFF_PARAM = 'bx_hs';
+    var HANDOFF_TOKEN_VERSION = 1;
+    var HANDOFF_FRESHNESS_MS = 120000; // 2 minutes, matches Google's _gl linker TTL
+
+    /* Fast non-crypto FNV-1a over userAgent + timezone offset + language,
+       joined by '|' so field boundaries cannot collide. Same formulation as
+       pidOf. Binds a token to the minting browser; NOT cryptographic proof. */
+    function computeHandoffFingerprint(userAgent, tzOffset, language) {
+        var str = String(userAgent == null ? '' : userAgent) + '|' +
+                  String(tzOffset == null ? '' : tzOffset) + '|' +
+                  String(language == null ? '' : language);
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        }
+        return ('0000000' + h.toString(16)).slice(-8);
+    }
+
+    /* base64url (hub DR-24): no %, no ://, no domain pattern, so a WAF never
+       trips on the URL param. UTF-8 safe though the payload is ASCII. */
+    function base64urlEncode(str) {
+        var b64 = btoa(unescape(encodeURIComponent(String(str))));
+        return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function base64urlDecode(s) {
+        var t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+        while (t.length % 4) { t += '='; }
+        return decodeURIComponent(escape(atob(t)));
+    }
+
+    /* Canonical token payload. `u` (the _bx_uid identity co-payload) is included
+       only when a uid is present; its absence is normal and lossless for the
+       consent backbone (design D4). */
+    function buildHandoffPayload(opts) {
+        opts = opts || {};
+        var perms = opts.permissions || {};
+        var payload = {
+            v: HANDOFF_TOKEN_VERSION,
+            t: opts.mintedAt,
+            f: opts.fingerprint,
+            o: opts.origin,
+            c: {
+                p: {
+                    necessary: !!perms.necessary,
+                    preferences: !!perms.preferences,
+                    analytics: !!perms.analytics,
+                    marketing: !!perms.marketing
+                },
+                e: !!opts.explicit,
+                g: !!opts.gpcApplied,
+                r: opts.region == null ? '' : opts.region,
+                cv: opts.schemaVersion
+            }
+        };
+        if (opts.uid) { payload.u = opts.uid; }
+        return payload;
+    }
+
+    function encodeHandoffToken(payload) {
+        return base64urlEncode(JSON.stringify(payload));
+    }
+
+    /* Decode a bx_hs value to its object, or null on ANY malformation. Never
+       throws: a bad token must fall through to the normal prompt, not break init. */
+    function decodeHandoffToken(token) {
+        if (token == null) { return null; }
+        try {
+            var obj = JSON.parse(base64urlDecode(token));
+            return (obj && typeof obj === 'object') ? obj : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    var HANDOFF_CATEGORY_KEYS = ['necessary', 'preferences', 'analytics', 'marketing'];
+
+    /* The destination accept/reject rule (keyless integrity, design section 6).
+       Every environment value is passed in, so this stays pure. Any false
+       result means: fall through to the normal prompt. */
+    function isHandoffAcceptable(token, ctx) {
+        ctx = ctx || {};
+        if (!token || typeof token !== 'object') { return { ok: false, reason: 'bad-token' }; }
+        if (token.v !== ctx.expectedVersion) { return { ok: false, reason: 'bad-version' }; }
+        if (typeof token.t !== 'number' || !isFinite(token.t)) { return { ok: false, reason: 'bad-timestamp' }; }
+        var age = ctx.nowMs - token.t;
+        if (age < 0) { return { ok: false, reason: 'future' }; }
+        if (age > ctx.freshnessMs) { return { ok: false, reason: 'stale' }; }
+        if (!token.f || token.f !== ctx.recomputedFingerprint) { return { ok: false, reason: 'fingerprint-mismatch' }; }
+        var c = token.c;
+        if (!c || typeof c !== 'object') { return { ok: false, reason: 'bad-consent' }; }
+        if (c.e !== true) { return { ok: false, reason: 'not-explicit' }; } // defense-in-depth: only carry an EXPLICIT decision
+        if (c.cv !== ctx.cfgVersion) { return { ok: false, reason: 'schema-mismatch' }; }
+        if (ctx.destInPerimeter !== true) { return { ok: false, reason: 'dest-not-in-perimeter' }; }
+        if (ctx.originInPerimeter !== true) { return { ok: false, reason: 'origin-not-in-perimeter' }; }
+        var p = c.p || {};
+        var known = ctx.knownCategories || [];
+        for (var i = 0; i < HANDOFF_CATEGORY_KEYS.length; i++) {
+            var k = HANDOFF_CATEGORY_KEYS[i];
+            if (p[k] === true && known.indexOf(k) === -1) { return { ok: false, reason: 'purpose-superset' }; }
+        }
+        return { ok: true, reason: 'ok' };
+    }
+
+    /* Perimeter (same-controller) matching by registrable domain. computeRootDomain
+       is passed in (matches the fixture's dependency injection) so these bodies
+       stay byte-identical to test/unit/handoffPerimeter.fixture.js; call sites
+       pass the in-scope computeRootDomain. */
+    function toRegistrableKey(host, computeRootDomain) {
+        var r = computeRootDomain(host, '');
+        if (!r) { return ''; }
+        return r.charAt(0) === '.' ? r.slice(1) : r;
+    }
+
+    function perimeterRegistrableDomains(siblingDomains, computeRootDomain) {
+        var out = [];
+        var seen = {};
+        if (!Array.isArray(siblingDomains)) { return out; }
+        for (var i = 0; i < siblingDomains.length; i++) {
+            var row = siblingDomains[i];
+            if (!row || typeof row.domain !== 'string') { continue; }
+            var key = toRegistrableKey(row.domain.trim(), computeRootDomain);
+            if (!key || seen[key]) { continue; }
+            seen[key] = true;
+            out.push(key);
+        }
+        return out;
+    }
+
+    function isHostInPerimeter(host, siblingDomains, computeRootDomain) {
+        var key = toRegistrableKey(host, computeRootDomain);
+        if (!key) { return false; }
+        return perimeterRegistrableDomains(siblingDomains, computeRootDomain).indexOf(key) !== -1;
+    }
+
+    function isDecorableSibling(targetHost, currentHost, siblingDomains, computeRootDomain) {
+        var targetKey = toRegistrableKey(targetHost, computeRootDomain);
+        var currentKey = toRegistrableKey(currentHost, computeRootDomain);
+        if (!targetKey || !currentKey) { return false; }
+        if (targetKey === currentKey) { return false; }
+        var perim = perimeterRegistrableDomains(siblingDomains, computeRootDomain);
+        return perim.indexOf(targetKey) !== -1 && perim.indexOf(currentKey) !== -1;
+    }
+
+    /* ─────────────────────────────────────────────
+       HANDOFF, DESTINATION APPLY (HD-0003-14)
+       getHandoffParam / stripHandoffParam / destinationWouldPromptFor are
+       logic-identical companions to test/unit/handoffApply.fixture.js (mirror
+       in the same commit). The three functions below them are the browser glue
+       (window.location / history / cookie / events), verified in the test rig.
+       ───────────────────────────────────────────── */
+
+    function getHandoffParam(search, paramName) {
+        var q = String(search == null ? '' : search);
+        if (q.charAt(0) === '?') { q = q.slice(1); }
+        if (!q) { return null; }
+        var pairs = q.split('&');
+        for (var i = 0; i < pairs.length; i++) {
+            if (!pairs[i]) { continue; }
+            var eq = pairs[i].indexOf('=');
+            var key = eq === -1 ? pairs[i] : pairs[i].slice(0, eq);
+            if (key === paramName) {
+                var val = eq === -1 ? '' : pairs[i].slice(eq + 1);
+                try { return decodeURIComponent(val); } catch (e) { return val; }
+            }
+        }
+        return null;
+    }
+
+    function stripHandoffParam(url, paramName) {
+        var u = String(url == null ? '' : url);
+        var hash = '';
+        var hashIdx = u.indexOf('#');
+        if (hashIdx !== -1) { hash = u.slice(hashIdx); u = u.slice(0, hashIdx); }
+        var qIdx = u.indexOf('?');
+        if (qIdx === -1) { return u + hash; }
+        var base = u.slice(0, qIdx);
+        var pairs = u.slice(qIdx + 1).split('&');
+        var kept = [];
+        for (var i = 0; i < pairs.length; i++) {
+            if (!pairs[i]) { continue; }
+            var eq = pairs[i].indexOf('=');
+            var key = eq === -1 ? pairs[i] : pairs[i].slice(0, eq);
+            if (key === paramName) { continue; }
+            kept.push(pairs[i]);
+        }
+        return base + (kept.length ? '?' + kept.join('&') : '') + hash;
+    }
+
+    function destinationWouldPromptFor(parsed, cfgVersion, expired) {
+        if (!parsed) { return true; }
+        if (parsed.version !== cfgVersion) { return true; }
+        if (expired) { return true; }
+        if (parsed.explicitConsent === true) { return false; }
+        return true;
+    }
+
+    /* Read bx_hs from the current URL, ALWAYS strip it (valid or not, design
+       section 8), and return the decoded token object or null. */
+    function consumeHandoffFromUrl() {
+        var raw = getHandoffParam(location.search, HANDOFF_PARAM);
+        if (!raw) { return null; }
+        try {
+            if (window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState(null, '', stripHandoffParam(location.href, HANDOFF_PARAM));
+            }
+        } catch (e) { /* replaceState unavailable: token still consumed, no leak of behavior */ }
+        return decodeHandoffToken(raw);
+    }
+
+    /* D-A1-4: does this domain currently have a valid, explicit, non-expired
+       local choice (which must win over any inbound token)? If so, do NOT apply
+       the handoff. Mirrors the branch predicates below. */
+    function destinationWouldPrompt() {
+        var existing = readCookie(cfg.cookieName);
+        var parsed = null;
+        if (existing) { try { parsed = JSON.parse(existing); } catch (e) { parsed = null; } }
+        var expired = parsed ? isConsentExpired(parsed, getConsentExpiry(), 1) : false;
+        return destinationWouldPromptFor(parsed, cfg.version, expired);
+    }
+
+    /* Validate an inbound token and, if acceptable, write this domain's OWN
+       fresh beexy_consent from the carried decision, apply Consent Mode, take
+       the silent path (no prompt), and re-log a fresh proof marked
+       source:'handoff'. Returns true when applied, false otherwise (caller then
+       falls through to the normal prompt). No reload: consent is set at init
+       before tags fire, so the reload path (handleConsent only) is not needed.
+       CONTRACT: the single caller gates this behind destinationWouldPrompt()
+       (D-A1-4, a local explicit choice wins); this function does not itself
+       re-check for an existing local choice. */
+    function applyHandoffConsent(token) {
+        var sibs = window.beexyConsentSiblingDomains;
+        var categories = (globalConfig && globalConfig.categories) || [];
+        var knownCategories = [];
+        for (var i = 0; i < categories.length; i++) {
+            if (categories[i] && categories[i].key) { knownCategories.push(categories[i].key); }
+        }
+        var ctx = {
+            nowMs: Date.now(),
+            freshnessMs: HANDOFF_FRESHNESS_MS,
+            expectedVersion: HANDOFF_TOKEN_VERSION,
+            recomputedFingerprint: computeHandoffFingerprint(navigator.userAgent, new Date().getTimezoneOffset(), navigator.language),
+            cfgVersion: cfg.version,
+            destInPerimeter: isHostInPerimeter(location.hostname, sibs, computeRootDomain),
+            originInPerimeter: isHostInPerimeter(token && token.o, sibs, computeRootDomain),
+            knownCategories: knownCategories
+        };
+        var verdict = isHandoffAcceptable(token, ctx);
+        if (!verdict.ok) {
+            if (window.beexyConsentEnableDebugLogging) {
+                console.log('[Beexy Consent] handoff token rejected (' + verdict.reason + '), normal prompt');
+            }
+            return false;
+        }
+        var carried = token.c.p;
+        var permissions = {
+            necessary: true,
+            preferences: !!carried.preferences,
+            analytics: !!carried.analytics,
+            marketing: !!carried.marketing
+        };
+        // The cookie + geo below intentionally record the ORIGIN's region (the
+        // region the decision was made under), falling back to this domain's
+        // region only when the token omitted it. Mirrors handleConsent /
+        // writeProvisionalConsent writing beexy_geo at the consent expiry.
+        var carriedRegion = (token.c.r == null || token.c.r === '') ? cfg.region : token.c.r;
+        consentState.permissions = permissions;
+        consentState.explicitConsent = true;
+        var expiry = getConsentExpiry();
+        setCookie(cfg.cookieName, JSON.stringify({
+            cid: getOrCreateConsentId(),
+            version: consentState.version,
+            permissions: permissions,
+            explicitConsent: true,
+            timestamp: new Date().toISOString(),
+            region: carriedRegion,
+            gpcApplied: !!token.c.g
+        }), expiry);
+        setCookie(GEO_COOKIE_NAME, carriedRegion, expiry);
+        window.beexyConsent = consentState;
+        if (window.beexyConsentEnableDebugLogging) {
+            console.log('[Beexy Consent] handoff applied from ' + token.o + ' (silent, no prompt)');
+        }
+        sendConsentEvents('existing', permissions);
+        logConsent('existing', permissions, { source: 'handoff', handoffOrigin: token.o });
+        showWidget();
+        return true;
+    }
+
+    /* ─────────────────────────────────────────────
+       HANDOFF, ORIGIN MINT + DECORATE (HD-0003-14)
+       decorateLinkHref is a logic-identical companion to
+       test/unit/handoffDecorate.fixture.js (mirror in the same commit).
+       installHandoffDecorator is the browser glue (delegated listener + mint),
+       verified in the test rig. Anchors are the primary case; programmatic /
+       SPA navigations and form posts are a documented limitation (design
+       section 5), to revisit in a later increment.
+       ───────────────────────────────────────────── */
+
+    function decorateLinkHref(href, tokenValue, paramName) {
+        var stripped = stripHandoffParam(href, paramName);
+        var hash = '';
+        var hashIdx = stripped.indexOf('#');
+        var base = stripped;
+        if (hashIdx !== -1) { hash = stripped.slice(hashIdx); base = stripped.slice(0, hashIdx); }
+        var sep = base.indexOf('?') === -1 ? '?' : '&';
+        return base + sep + paramName + '=' + tokenValue + hash;
+    }
+
+    function installHandoffDecorator() {
+        if (!cfg.crossDomainHandoff) { return; }
+        var sibs = window.beexyConsentSiblingDomains;
+        if (!Array.isArray(sibs) || !sibs.length) { return; } // no perimeter => nothing to decorate
+
+        function decorateOnActivate(e) {
+            try {
+                // Walk up to the nearest anchor that carries an href.
+                var el = e.target;
+                var anchor = null;
+                while (el && el.nodeType === 1) {
+                    if (el.tagName && el.tagName.toLowerCase() === 'a' && el.getAttribute('href')) { anchor = el; break; }
+                    el = el.parentNode;
+                }
+                if (!anchor) { return; }
+                // Only carry consent for a visitor who has made an explicit choice.
+                if (!(consentState && consentState.explicitConsent === true)) { return; }
+                // Only a genuine cross-domain hop to a covered sibling is decorated.
+                if (!isDecorableSibling(anchor.hostname, location.hostname, sibs, computeRootDomain)) { return; }
+                // Mint fresh at activation time so t and f reflect this moment.
+                var tokenValue = encodeHandoffToken(buildHandoffPayload({
+                    mintedAt: Date.now(),
+                    fingerprint: computeHandoffFingerprint(navigator.userAgent, new Date().getTimezoneOffset(), navigator.language),
+                    origin: toRegistrableKey(location.hostname, computeRootDomain),
+                    permissions: consentState.permissions,
+                    explicit: true,
+                    gpcApplied: isGpcEnabled(),
+                    region: cfg.region,
+                    schemaVersion: cfg.version,
+                    uid: readCookie('_bx_uid') // present only when the Webloader has set it; omitted otherwise
+                }));
+                // Decorate for THIS activation only, then restore. Navigation reads
+                // the href synchronously during the event, so a macrotask restore
+                // runs AFTER the browser has captured the decorated URL. This keeps
+                // the token (which carries _bx_uid) out of the live DOM afterwards,
+                // so a later copy-link / share / scrape cannot lift it. (A browser
+                // that snapshots the URL at mousedown rather than at click/auxclick
+                // is a documented limitation, like SPA and form-post navigations.)
+                var originalHref = anchor.getAttribute('href');
+                anchor.href = decorateLinkHref(anchor.href, tokenValue, HANDOFF_PARAM);
+                setTimeout(function () {
+                    if (originalHref === null) { anchor.removeAttribute('href'); }
+                    else { anchor.setAttribute('href', originalHref); }
+                }, 0);
+                if (window.beexyConsentEnableDebugLogging) {
+                    console.log('[Beexy Consent] handoff link decorated -> ' + anchor.hostname);
+                }
+            } catch (err) { /* never break a click */ }
+        }
+
+        // Capture phase so the href is rewritten before default navigation. click
+        // covers left-click + keyboard (Enter on a focused anchor dispatches click);
+        // auxclick covers middle-click.
+        document.addEventListener('click', decorateOnActivate, true);
+        document.addEventListener('auxclick', decorateOnActivate, true);
+    }
+
+    /* ═══════════════════════════════════════════════
        CHECK EXISTING CONSENT
        ═══════════════════════════════════════════════ */
 
@@ -1645,6 +2045,19 @@
     }
 
     function checkExistingConsent() {
+        /* HD-0003-14 inbound consent handoff (pre-step). When the feature is on
+           and a valid, fresh, same-browser, in-perimeter token is present AND
+           this domain would otherwise prompt (D-A1-4: a real on-site choice
+           always wins), apply the carried consent silently and skip the prompt.
+           The token is stripped from the URL whether or not it is applied. When
+           the feature is off this block is inert, so behaviour is identical to
+           1.12.0. */
+        if (cfg.crossDomainHandoff) {
+            var inboundToken = consumeHandoffFromUrl();
+            if (inboundToken && destinationWouldPrompt() && applyHandoffConsent(inboundToken)) {
+                return;
+            }
+        }
         var existing = readCookie(cfg.cookieName);
         if (!existing) {
             autoShowOrSuppress();
@@ -3674,6 +4087,12 @@
 
             /* Check for existing consent or show banner */
             checkExistingConsent();
+
+            /* HD-0003-14: wire the outbound-link decorator once. Inert unless the
+               feature is on and a perimeter is configured; it checks the live
+               consent state at click time, so it also covers consent granted
+               after load. */
+            installHandoffDecorator();
         } /* end onReady */
 
         /* Config loads first, then triggers language + cookie-DB loading as siblings.
