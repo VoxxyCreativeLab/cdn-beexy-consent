@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.13.0';
+    var BANNER_VERSION = '1.13.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -1436,6 +1436,30 @@
         });
     }
 
+    /* inert only where the banner set it (1.13.1).
+       Built per: docs/superpowers/plans/2026-11-12-blur-own-layer-build.md
+       Logic-identical to test/unit/backgroundInert.fixture.js (mirror changes
+       in the same commit). */
+    var bannerInertNodes = [];
+
+    function markBackgroundInert(children, skipId) {
+        var marked = [];
+        for (var i = 0; i < children.length; i++) {
+            var el = children[i];
+            if (el.id === skipId || el.hasAttribute('inert')) continue;
+            el.setAttribute('inert', '');
+            marked.push(el);
+        }
+        return marked;
+    }
+
+    function clearBackgroundInert(marked) {
+        for (var i = 0; i < marked.length; i++) {
+            marked[i].removeAttribute('inert');
+        }
+        return [];
+    }
+
     function showBanner() {
         var banner = document.getElementById(cfg.bannerId);
         var overlay = document.getElementById(cfg.overlayId);
@@ -1447,17 +1471,12 @@
             if (!dvhSupported) fixBannerHeight();
             if (cfg.showOverlay) {
                 overlay.style.display = 'block';
-                document.documentElement.classList.add('beexy-consent-blur');
             }
             hideWidget();
 
-            /* WCAG 1.3.1: mark background inert so screen readers stay inside the dialog */
-            var bodyChildren = document.body.children;
-            for (var bi = 0; bi < bodyChildren.length; bi++) {
-                if (bodyChildren[bi].id !== cfg.containerId) {
-                    bodyChildren[bi].setAttribute('inert', '');
-                }
-            }
+            /* WCAG 1.3.1: mark background inert so screen readers stay inside the dialog.
+               Only elements not inert yet are marked and remembered (1.13.1). */
+            bannerInertNodes = bannerInertNodes.concat(markBackgroundInert(document.body.children, cfg.containerId));
 
             /* WCAG 2.4.3 + BACKLOG #20: initial focus lands on the banner
                shell itself (not the Consent tab). The shell carries
@@ -1505,14 +1524,10 @@
             banner.style.display = 'none';
             if (cfg.showOverlay) {
                 overlay.style.display = 'none';
-                document.documentElement.classList.remove('beexy-consent-blur');
             }
 
-            /* WCAG 1.3.1: remove inert from page background */
-            var bodyChildren = document.body.children;
-            for (var bi = 0; bi < bodyChildren.length; bi++) {
-                bodyChildren[bi].removeAttribute('inert');
-            }
+            /* WCAG 1.3.1: remove inert only where the banner set it (1.13.1) */
+            bannerInertNodes = clearBackgroundInert(bannerInertNodes);
 
             /* WCAG 4.1.3: clear live region */
             var liveRegion = document.getElementById('beexyConsentLiveRegion');
@@ -2844,16 +2859,13 @@
                 '--beexy-consent-md-badge-h: 16px;' +
             '}' +
 
-            'html.beexy-consent-blur > body > *:not(#' + cfg.containerId + ') {' +
-                'filter: blur(4px);' +
-                'transition: filter 0.2s ease;' +
-            '}' +
-
             '#' + cfg.overlayId + ' {' +
                 'position: fixed;' +
                 'top: 0; left: 0;' +
                 'width: 100%; height: 100%;' +
                 'background: ' + pRgba(0.4) + ' !important;' +
+                '-webkit-backdrop-filter: blur(4px);' +
+                'backdrop-filter: blur(4px);' +
                 'z-index: 2147483646;' +
                 'display: none;' +
             '}' +
