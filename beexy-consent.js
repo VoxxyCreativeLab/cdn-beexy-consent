@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.13.1';
+    var BANNER_VERSION = '1.14.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -438,6 +438,10 @@
            whole handoff pre-step is skipped (byte-identical to 1.12.0). Default
            OFF (D-A1-1) pending the DPA / Art. 7 sign-off (design section 10). */
         crossDomainHandoff: window.beexyConsentCrossDomainHandoff === true,
+        /* Region cookie phone use (backlog 70, Pro and Agency). Strict === true
+           so Basic / an un-injected var resolves to false: no phone sentence in
+           the cookie table (the region cookie keeps its one stated purpose). */
+        regionCookiePhoneUse: window.beexyConsentRegionCookiePhoneUse === true,
         dataController: window.beexyConsentDataController || '',
         /* Hide the About-tab data-controller sentence for parties who are not
            the controller (e.g. an agency that only logs consent and does not
@@ -606,10 +610,13 @@
         }
     }
 
-    /* Auto-included in Necessary: banner's own cookies */
+    /* Auto-included in Necessary: banner's own cookies. The cookie table does
+       not show the duration values below for these two rows: it states their
+       real durations from the region's consent lifetime at render time
+       (backlog 70, buildCookieTableHTML). */
     var AUTO_NECESSARY_COOKIES = [
         { name: 'beexy_consent', category: 'necessary', provider: 'Beexy Consent', duration: '1 year', purpose: 'Stores your cookie consent preferences', purposeKey: 'selfCookies.beexy_consent' },
-        { name: 'beexy_geo', category: 'necessary', provider: 'Beexy Consent', duration: '30 days', purpose: 'Caches your detected geographic region', purposeKey: 'selfCookies.beexy_geo' }
+        { name: 'beexy_geo', category: 'necessary', provider: 'Beexy Consent', duration: '30 days', purpose: 'Remembers your detected region, so the right consent rules apply.', purposeKey: 'selfCookies.beexy_geo' }
     ];
     var customCookies = window.beexyConsentCustomCookies || [];
     /* Two-layer detection model (BACKLOG #2 v1.4.0):
@@ -712,6 +719,48 @@
     var GEO_ENDPOINT_URL = 'https://beexy-geo.voxxycreativelab.workers.dev';
     var GEO_COOKIE_NAME = 'beexy_geo';
     var GEO_COOKIE_EXPIRY = 30; // days (before consent; synced to consent expiry after)
+
+    /* Region cookie helpers (backlog 70).
+       Built per: docs/superpowers/plans/2026-11-10-region-cookie-build.md
+       Pure, logic-identical to test/unit/regionCookie.fixture.js (mirror changes
+       in the same commit).
+       - isKnownRegion: a stored or written region counts only when it is a real
+         region code; "unknown" (a failed lookup), empty and missing do not, so a
+         failed lookup can no longer pin "unknown" for the consent lifetime.
+       - writesConsentOnLoad: mirrors the on-load provisional consent write in
+         initializeBanner (template install, banner shows, defaults grant
+         something), which also writes beexy_geo with the consent lifetime.
+       - geoDurationText: beexy_geo's stated duration: two phases where nothing
+         is written on load, the lifetime alone where it is.
+       - regionCookiePurpose: adds the phone sentence only when the site's switch
+         (regionCookiePhoneUse, Pro and Agency) is on; no space after an
+         ideographic full stop (Japanese, Chinese). */
+    function isKnownRegion(region) {
+        return typeof region === 'string' && region !== '' && region !== 'unknown';
+    }
+
+    function writesConsentOnLoad(gtmManaged, showBanner, defaults) {
+        var d = defaults || {};
+        return !!gtmManaged && showBanner !== false && !!(d.preferences || d.analytics || d.marketing);
+    }
+
+    var EN_GEO_DURATION_FRAME = '{first}, then {second} after your choice';
+    var EN_GEO_PHONE_SENTENCE = 'With your marketing consent, it is also used to add the country code to a phone number you enter on this site.';
+
+    function geoDurationText(geoDays, consentDays, writesOnLoad, frame, localize) {
+        var loc = (typeof localize === 'function') ? localize : function (s) { return s; };
+        var full = loc(consentDays + ' days');
+        if (writesOnLoad) { return full; }
+        var f = (typeof frame === 'string' && frame.indexOf('{first}') !== -1 && frame.indexOf('{second}') !== -1)
+            ? frame : EN_GEO_DURATION_FRAME;
+        return f.replace('{first}', loc(geoDays + ' days')).replace('{second}', full);
+    }
+
+    function regionCookiePurpose(base, phoneSentence, phoneUseOn) {
+        if (!(phoneUseOn && phoneSentence)) { return base; }
+        var sep = (base.charAt(base.length - 1) === String.fromCharCode(0x3002)) ? '' : ' ';
+        return base + sep + phoneSentence;
+    }
 
     function loadConfig(callback) {
         if (window.beexyConsentConfig && typeof window.beexyConsentConfig === 'object') {
@@ -853,9 +902,10 @@
             return;
         }
 
-        // 2. Cached geo cookie (no API call needed)
+        // 2. Cached geo cookie (no API call needed). A stored "unknown" (an
+        //    earlier failed lookup) does not count: look up again (backlog 70).
         var geoCookie = readCookie(GEO_COOKIE_NAME);
-        if (geoCookie) {
+        if (isKnownRegion(geoCookie)) {
             cfg.region = geoCookie;
             callback();
             return;
@@ -1177,7 +1227,10 @@
             region: cfg.region,
             gpcApplied: isGpcEnabled()
         }), expiry);
-        setCookie(GEO_COOKIE_NAME, cfg.region, expiry);
+        // Never store a failed lookup ("unknown") as the region (backlog 70).
+        if (isKnownRegion(cfg.region)) {
+            setCookie(GEO_COOKIE_NAME, cfg.region, expiry);
+        }
     }
 
     /* setCookieHostOnly, used only for the migration delete step that
@@ -1342,6 +1395,17 @@
         catch (e) {}
     }
 
+    /* The phone-use mark (1.14.0, design 2026-11-12).
+       Built per: docs/superpowers/plans/2026-11-12-region-cookie-phone-switch-build.md
+       Only the visitor's choice in the banner (handleConsent) passes the site's
+       switch here; no other writer of beexy_consent adds the field.
+       Logic-identical to test/unit/phoneUseMark.fixture.js (mirror changes in
+       the same commit). */
+    function withPhoneUseMark(record, phoneUseOn) {
+        if (phoneUseOn === true) { record.regionCookiePhoneUse = true; }
+        return record;
+    }
+
     function handleConsent(type) {
         var permissions = { necessary: true };
         var toggles = document.querySelectorAll('.beexy-consent-toggle');
@@ -1365,7 +1429,7 @@
         consentState.explicitConsent = true;
 
         var consentExpiry = getConsentExpiry();
-        setCookie(cfg.cookieName, JSON.stringify({
+        setCookie(cfg.cookieName, JSON.stringify(withPhoneUseMark({
             cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
@@ -1373,8 +1437,11 @@
             timestamp: new Date().toISOString(),
             region: cfg.region,
             gpcApplied: isGpcEnabled()
-        }), consentExpiry);
-        setCookie(GEO_COOKIE_NAME, cfg.region, consentExpiry);
+        }, cfg.regionCookiePhoneUse)), consentExpiry);
+        // Never store a failed lookup ("unknown") as the region (backlog 70).
+        if (isKnownRegion(cfg.region)) {
+            setCookie(GEO_COOKIE_NAME, cfg.region, consentExpiry);
+        }
 
         closeBanner();
         showWidget();
@@ -1946,7 +2013,11 @@
             region: carriedRegion,
             gpcApplied: !!token.c.g
         }), expiry);
-        setCookie(GEO_COOKIE_NAME, carriedRegion, expiry);
+        // The carried region may be "unknown"; it stays in the consent record
+        // above but is never stored as this site's region cookie (backlog 70).
+        if (isKnownRegion(carriedRegion)) {
+            setCookie(GEO_COOKIE_NAME, carriedRegion, expiry);
+        }
         window.beexyConsent = consentState;
         if (window.beexyConsentEnableDebugLogging) {
             console.log('[Beexy Consent] handoff applied from ' + token.o + ' (silent, no prompt)');
@@ -2297,6 +2368,7 @@
 
         var translate = (resolvedLang !== 'en');
         var durLex = getDurationLex();
+        var localizeFn = function (s) { return translate ? localizeDuration(s, durLex) : s; };
         for (var i = 0; i < cookies.length; i++) {
             var c = cookies[i];
             var english = c.purpose || '';
@@ -2306,6 +2378,11 @@
                    (lang files), with per-key English fallback built in. Not in the
                    OCD database, so they never carry a pid. */
                 purposeText = getText(c.purposeKey) || english;
+                /* Backlog 70: the region cookie's phone use is stated only where
+                   the site ticks the switch (Beexy Transport formats phones). */
+                if (c.name === GEO_COOKIE_NAME) {
+                    purposeText = regionCookiePurpose(purposeText, getText('selfCookies.beexy_geo_phone') || EN_GEO_PHONE_SENTENCE, cfg.regionCookiePhoneUse);
+                }
             } else {
                 var pid = (translate && english) ? pidOf(english) : '';
                 /* If translations already loaded (re-render path), use them; else emit
@@ -2313,10 +2390,24 @@
                 purposeText = (pid && purposeTranslations && purposeTranslations[pid]) || english;
                 pidAttr = pid ? ' data-pid="' + pid + '"' : '';
             }
+            /* Backlog 70: the banner's own cookies state their real durations,
+               worked out now that the region is known: the region's consent
+               lifetime, and for beexy_geo two phases unless consent is written on
+               load (then it has the lifetime from the first visit). */
+            var durationText;
+            if (c.purposeKey && c.name === GEO_COOKIE_NAME) {
+                durationText = geoDurationText(GEO_COOKIE_EXPIRY, getConsentExpiry(),
+                    writesConsentOnLoad(window.beexyConsentGtmManaged, getMode().showBanner, getEffectiveDefaults()),
+                    getText('selfCookies.beexy_geo_duration'), localizeFn);
+            } else if (c.purposeKey && c.name === CONSENT_COOKIE_NAME) {
+                durationText = localizeFn(getConsentExpiry() + ' days');
+            } else {
+                durationText = localizeFn(c.duration || '');
+            }
             html += '<tr>' +
                 '<td>' + (c.name || '') + '</td>' +
                 '<td' + pidAttr + '>' + purposeText + '</td>' +
-                '<td>' + (translate ? localizeDuration(c.duration || '', durLex) : (c.duration || '')) + '</td>' +
+                '<td>' + durationText + '</td>' +
                 '<td>' + (c.provider || '') + '</td>' +
                 '</tr>';
         }
@@ -2695,7 +2786,7 @@
             : '';
 
         /* shouldShowController | logic-identical companion in
-           test/unit/shouldShowController.fixture.js — keep the two in sync.
+           test/unit/shouldShowController.fixture.js; keep the two in sync.
            Shows the data-controller sentence only when a name is set AND the
            hide toggle is not strictly true (absent => shown, backward-compatible). */
         function shouldShowController(dataController, hideDataController) {
@@ -3859,7 +3950,10 @@
                     region: cfg.region,
                     gpcApplied: false
                 }), autoGrantExpiry);
-                setCookie(GEO_COOKIE_NAME, cfg.region, autoGrantExpiry);
+                // Never store a failed lookup ("unknown") as the region (backlog 70).
+                if (isKnownRegion(cfg.region)) {
+                    setCookie(GEO_COOKIE_NAME, cfg.region, autoGrantExpiry);
+                }
                 sendConsentEvents('auto-grant', allGranted);
                 return;
             }
@@ -4167,7 +4261,10 @@
                     region: cfg.region,
                     gpcApplied: isGpcEnabled()
                 }), apiExpiry);
-                setCookie(GEO_COOKIE_NAME, cfg.region, apiExpiry);
+                // Never store a failed lookup ("unknown") as the region (backlog 70).
+                if (isKnownRegion(cfg.region)) {
+                    setCookie(GEO_COOKIE_NAME, cfg.region, apiExpiry);
+                }
                 sendConsentEvents('api_update', consentState.permissions);
                 logConsent('api_update', consentState.permissions);
             }

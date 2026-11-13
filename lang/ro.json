@@ -60,6 +60,12 @@
     "provider": "Furnizor",
     "value": "Valoare"
   },
+  "selfCookies": {
+    "beexy_consent": "Stochează preferințele dumneavoastră privind consimțământul pentru cookie-uri",
+    "beexy_geo": "Reține regiunea dumneavoastră detectată, pentru a se aplica regulile de consimțământ corecte.",
+    "beexy_geo_phone": "Cu consimțământul dumneavoastră pentru marketing, este folosit și pentru a adăuga prefixul țării la un număr de telefon pe care îl introduceți pe acest site.",
+    "beexy_geo_duration": "{first}, apoi {second} după alegerea dumneavoastră"
+  },
   "duration": {
     "units": {
       "second": {

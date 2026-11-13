@@ -60,6 +60,12 @@
     "provider": "Sağlayıcı",
     "value": "Değer"
   },
+  "selfCookies": {
+    "beexy_consent": "Çerez onayı tercihlerinizi saklar",
+    "beexy_geo": "Doğru onay kurallarının uygulanması için algılanan bölgenizi hatırlar.",
+    "beexy_geo_phone": "Pazarlama onayınızla, bu sitede girdiğiniz bir telefon numarasına ülke kodunu eklemek için de kullanılır.",
+    "beexy_geo_duration": "{first}, seçiminizden sonra {second}"
+  },
   "duration": {
     "units": {
       "second": {

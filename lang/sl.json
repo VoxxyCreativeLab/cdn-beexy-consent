@@ -60,6 +60,12 @@
     "provider": "Ponudnik",
     "value": "Vrednost"
   },
+  "selfCookies": {
+    "beexy_consent": "Shranjuje vaše nastavitve soglasja za piškotke",
+    "beexy_geo": "Zapomni si vašo zaznano regijo, da veljajo pravilna pravila soglasja.",
+    "beexy_geo_phone": "Z vašim soglasjem za trženjske piškotke se uporablja tudi za dodajanje klicne kode države telefonski številki, ki jo vnesete na tej spletni strani.",
+    "beexy_geo_duration": "{first}, po vaši izbiri {second}"
+  },
   "duration": {
     "units": {
       "second": {

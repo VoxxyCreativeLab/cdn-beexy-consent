@@ -60,6 +60,12 @@
     "provider": "提供方",
     "value": "值"
   },
+  "selfCookies": {
+    "beexy_consent": "存储您的 Cookie 同意偏好设置",
+    "beexy_geo": "记住检测到的您所在地区，以便适用正确的同意规则。",
+    "beexy_geo_phone": "在您同意营销用途后，还会用于为您在本网站输入的电话号码添加国家代码。",
+    "beexy_geo_duration": "{first}，您做出选择后为 {second}"
+  },
   "duration": {
     "units": {
       "second": {

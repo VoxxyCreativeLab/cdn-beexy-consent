@@ -60,6 +60,12 @@
     "provider": "Teenusepakkuja",
     "value": "Väärtus"
   },
+  "selfCookies": {
+    "beexy_consent": "Salvestab teie küpsiste nõusoleku eelistused",
+    "beexy_geo": "Jätab meelde teie tuvastatud piirkonna, et kehtiksid õiged nõusolekureeglid.",
+    "beexy_geo_phone": "Kui olete andnud nõusoleku turundusele, kasutatakse seda ka riigi suunakoodi lisamiseks telefoninumbrile, mille sellel saidil sisestate.",
+    "beexy_geo_duration": "{first}, pärast teie valikut {second}"
+  },
   "duration": {
     "units": {
       "second": {

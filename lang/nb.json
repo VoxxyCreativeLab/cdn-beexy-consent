@@ -60,6 +60,12 @@
     "provider": "Leverandør",
     "value": "Verdi"
   },
+  "selfCookies": {
+    "beexy_consent": "Lagrer dine valg for samtykke til informasjonskapsler",
+    "beexy_geo": "Husker den registrerte regionen din, slik at riktige samtykkeregler gjelder.",
+    "beexy_geo_phone": "Med ditt samtykke til markedsføring brukes den også til å legge til landskoden på et telefonnummer du skriver inn på dette nettstedet.",
+    "beexy_geo_duration": "{first}, deretter {second} etter at du har valgt"
+  },
   "duration": {
     "units": {
       "second": {

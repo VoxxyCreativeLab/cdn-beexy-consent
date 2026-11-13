@@ -60,6 +60,12 @@
     "provider": "Tarjoaja",
     "value": "Arvo"
   },
+  "selfCookies": {
+    "beexy_consent": "Tallentaa evästesuostumusasetuksesi",
+    "beexy_geo": "Muistaa havaitun alueesi, jotta oikeat suostumussäännöt ovat voimassa.",
+    "beexy_geo_phone": "Markkinointisuostumuksellasi sitä käytetään myös maatunnuksen lisäämiseen puhelinnumeroon, jonka syötät tällä sivustolla.",
+    "beexy_geo_duration": "{first}, valintasi jälkeen {second}"
+  },
   "duration": {
     "units": {
       "second": {

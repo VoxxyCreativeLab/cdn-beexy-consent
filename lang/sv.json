@@ -60,6 +60,12 @@
     "provider": "Leverantör",
     "value": "Värde"
   },
+  "selfCookies": {
+    "beexy_consent": "Sparar dina inställningar för cookiesamtycke",
+    "beexy_geo": "Kommer ihåg din identifierade region, så att rätt samtyckesregler gäller.",
+    "beexy_geo_phone": "Med ditt samtycke till marknadsföring används den även för att lägga till landsnumret till ett telefonnummer som du anger på den här webbplatsen.",
+    "beexy_geo_duration": "{first}, därefter {second} efter ditt val"
+  },
   "duration": {
     "units": {
       "second": {

@@ -62,7 +62,9 @@
   },
   "selfCookies": {
     "beexy_consent": "Enregistre vos préférences de consentement aux cookies",
-    "beexy_geo": "Mémorise votre région détectée"
+    "beexy_geo": "Mémorise votre région détectée, afin d’appliquer les bonnes règles de consentement.",
+    "beexy_geo_phone": "Avec votre consentement au marketing, elle sert aussi à ajouter l’indicatif du pays à un numéro de téléphone que vous saisissez sur ce site.",
+    "beexy_geo_duration": "{first}, puis {second} après votre choix"
   },
   "duration": {
     "units": {

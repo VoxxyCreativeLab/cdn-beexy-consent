@@ -60,6 +60,12 @@
     "provider": "Tiekėjas",
     "value": "Reikšmė"
   },
+  "selfCookies": {
+    "beexy_consent": "Išsaugo jūsų slapukų sutikimo nuostatas",
+    "beexy_geo": "Įsimena nustatytą jūsų regioną, kad būtų taikomos tinkamos sutikimo taisyklės.",
+    "beexy_geo_phone": "Jums sutikus su rinkodaros slapukais, jis taip pat naudojamas pridėti šalies kodą prie telefono numerio, kurį įvedate šioje svetainėje.",
+    "beexy_geo_duration": "{first}, po jūsų pasirinkimo {second}"
+  },
   "duration": {
     "units": {
       "second": {

@@ -60,6 +60,12 @@
     "provider": "Fornitore",
     "value": "Valore"
   },
+  "selfCookies": {
+    "beexy_consent": "Memorizza le preferenze di consenso ai cookie",
+    "beexy_geo": "Ricorda la regione rilevata, così da applicare le corrette regole di consenso.",
+    "beexy_geo_phone": "Con il consenso al marketing, viene utilizzato anche per aggiungere il prefisso internazionale a un numero di telefono inserito su questo sito.",
+    "beexy_geo_duration": "{first}, poi {second} dopo la scelta"
+  },
   "duration": {
     "units": {
       "second": {

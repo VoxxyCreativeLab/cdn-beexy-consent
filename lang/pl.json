@@ -60,6 +60,12 @@
     "provider": "Dostawca",
     "value": "Wartość"
   },
+  "selfCookies": {
+    "beexy_consent": "Przechowuje Twoje preferencje dotyczące zgody na pliki cookie",
+    "beexy_geo": "Zapamiętuje Twój wykryty region, aby stosowane były właściwe zasady zgody.",
+    "beexy_geo_phone": "Za Twoją zgodą na marketingowe pliki cookie jest również używany do dodania numeru kierunkowego kraju do numeru telefonu, który wpisujesz w tej witrynie.",
+    "beexy_geo_duration": "{first}, a po dokonaniu wyboru {second}"
+  },
   "duration": {
     "units": {
       "second": {

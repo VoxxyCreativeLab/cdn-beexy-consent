@@ -60,6 +60,12 @@
     "provider": "Poskytovatel",
     "value": "Hodnota"
   },
+  "selfCookies": {
+    "beexy_consent": "Ukládá vaše předvolby souhlasu s cookies",
+    "beexy_geo": "Pamatuje si váš zjištěný region, aby se uplatnila správná pravidla souhlasu.",
+    "beexy_geo_phone": "S vaším souhlasem s marketingovými cookies se používá také k doplnění předvolby země k telefonnímu číslu, které na tomto webu zadáte.",
+    "beexy_geo_duration": "{first}, po vaší volbě {second}"
+  },
   "duration": {
     "units": {
       "second": {

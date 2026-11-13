@@ -60,6 +60,12 @@
     "provider": "제공자",
     "value": "값"
   },
+  "selfCookies": {
+    "beexy_consent": "귀하의 쿠키 동의 설정을 저장합니다",
+    "beexy_geo": "감지된 귀하의 지역을 기억하여 올바른 동의 규칙이 적용되도록 합니다.",
+    "beexy_geo_phone": "마케팅에 동의하시면, 이 사이트에서 입력하신 전화번호에 국가 번호를 추가하는 데에도 사용됩니다.",
+    "beexy_geo_duration": "{first}, 선택 후에는 {second}"
+  },
   "duration": {
     "units": {
       "second": {

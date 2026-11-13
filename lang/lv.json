@@ -60,6 +60,12 @@
     "provider": "Pakalpojumu sniedzējs",
     "value": "Vērtība"
   },
+  "selfCookies": {
+    "beexy_consent": "Saglabā jūsu sīkdatņu piekrišanas preferences",
+    "beexy_geo": "Atceras jūsu noteikto reģionu, lai tiktu piemēroti pareizie piekrišanas noteikumi.",
+    "beexy_geo_phone": "Ar jūsu piekrišanu mārketinga sīkdatnēm tā tiek izmantota arī, lai pievienotu valsts kodu tālruņa numuram, ko ievadāt šajā vietnē.",
+    "beexy_geo_duration": "{first}, pēc jūsu izvēles {second}"
+  },
   "duration": {
     "units": {
       "second": {

@@ -311,7 +311,9 @@
       },
       "selfCookies": {
         "beexy_consent": "Stores your cookie consent preferences",
-        "beexy_geo": "Caches your detected geographic region"
+        "beexy_geo": "Remembers your detected region, so the right consent rules apply.",
+        "beexy_geo_phone": "With your marketing consent, it is also used to add the country code to a phone number you enter on this site.",
+        "beexy_geo_duration": "{first}, then {second} after your choice"
       },
       "unknownCookies": {
         "title": "Unknown cookies",

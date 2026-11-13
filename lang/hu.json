@@ -60,6 +60,12 @@
     "provider": "Szolgáltató",
     "value": "Érték"
   },
+  "selfCookies": {
+    "beexy_consent": "Tárolja az Ön süti-hozzájárulási beállításait",
+    "beexy_geo": "Megjegyzi az Ön észlelt régióját, hogy a megfelelő hozzájárulási szabályok érvényesüljenek.",
+    "beexy_geo_phone": "Marketinghez adott hozzájárulása esetén arra is használjuk, hogy az ezen a weboldalon megadott telefonszámhoz hozzáadjuk az országhívószámot.",
+    "beexy_geo_duration": "{first}, majd választása után {second}"
+  },
   "duration": {
     "units": {
       "second": {

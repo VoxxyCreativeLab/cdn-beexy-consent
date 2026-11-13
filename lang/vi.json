@@ -60,6 +60,12 @@
     "provider": "Nhà cung cấp",
     "value": "Giá trị"
   },
+  "selfCookies": {
+    "beexy_consent": "Lưu trữ tùy chọn đồng ý cookie của bạn",
+    "beexy_geo": "Ghi nhớ khu vực đã được phát hiện của bạn để áp dụng đúng các quy tắc đồng ý.",
+    "beexy_geo_phone": "Khi bạn đồng ý với tiếp thị, cookie này cũng được dùng để thêm mã quốc gia vào số điện thoại bạn nhập trên trang web này.",
+    "beexy_geo_duration": "{first}, sau khi bạn lựa chọn là {second}"
+  },
   "duration": {
     "units": {
       "second": {

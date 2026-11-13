@@ -62,7 +62,9 @@
   },
   "selfCookies": {
     "beexy_consent": "Speichert Ihre Cookie-Einwilligungseinstellungen",
-    "beexy_geo": "Speichert Ihre erkannte Region"
+    "beexy_geo": "Speichert Ihre erkannte Region, damit die richtigen Einwilligungsregeln gelten.",
+    "beexy_geo_phone": "Mit Ihrer Einwilligung in Marketing wird sie auch verwendet, um einer Telefonnummer, die Sie auf dieser Website eingeben, die Landesvorwahl hinzuzufügen.",
+    "beexy_geo_duration": "{first}, danach {second} nach Ihrer Wahl"
   },
   "duration": {
     "units": {

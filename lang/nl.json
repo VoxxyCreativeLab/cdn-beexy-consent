@@ -62,7 +62,9 @@
   },
   "selfCookies": {
     "beexy_consent": "Slaat uw cookietoestemmingsvoorkeuren op",
-    "beexy_geo": "Onthoudt uw gedetecteerde regio"
+    "beexy_geo": "Onthoudt uw gedetecteerde regio, zodat de juiste toestemmingsregels gelden.",
+    "beexy_geo_phone": "Met uw toestemming voor marketing wordt het ook gebruikt om de landcode toe te voegen aan een telefoonnummer dat u op deze site invult.",
+    "beexy_geo_duration": "{first}, daarna {second} na uw keuze"
   },
   "duration": {
     "units": {
