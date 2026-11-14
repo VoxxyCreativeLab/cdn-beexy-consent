@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.14.0';
+    var BANNER_VERSION = '1.15.0';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -158,6 +158,89 @@
     }
 
     var ROOT_DOMAIN = computeRootDomain(location.hostname, window.beexyConsentRootDomainOverride || '');
+
+    /* ═══════════════════════════════════════════════
+       REFERRER HANDOVER AND RELOAD FLAG (1.15.0, backlog 82)
+       Built per: docs/superpowers/plans/2026-11-13-referrer-handover-build.md
+       Beexy Identity reads _bx_reload_ref (the outside site the visit came
+       from) and _bx_reload (the consent reload) on its loader request, and on
+       every page that request goes out before this script runs: the request
+       loads the container that loads the banner. So, where Identity runs, a
+       handover found here has been read and is removed at once; on a page
+       without Identity's loader it stays for the next page that has it (code
+       review, 2026-11-14). A reload flag found here is removed
+       when the visitor leaves this page (pagehide, which also fires on entry
+       to the back/forward cache; never unload). Transport reads the flag later
+       on the page and deletes it too. The 5-minute life is the backstop when
+       pagehide does not fire (mobile). Helpers are logic-identical to
+       test/unit/reloadRef.fixture.js (mirror changes in the same commit).
+       ═══════════════════════════════════════════════ */
+    var RELOAD_REF_COOKIE = '_bx_reload_ref';
+    var RELOAD_REF_DAYS = 30 / 1440;
+    var RELOAD_FLAG_COOKIE = '_bx_reload';
+    var RELOAD_FLAG_DAYS = 5 / 1440;
+
+    function onPageHideReloadFlag() {
+        window.removeEventListener('pagehide', onPageHideReloadFlag);
+        setCookie(RELOAD_FLAG_COOKIE, '', -1);
+    }
+
+    if (isIdentityPresent() && readCookie(RELOAD_REF_COOKIE) !== null) {
+        setCookie(RELOAD_REF_COOKIE, '', -1);
+    }
+    if (readCookie(RELOAD_FLAG_COOKIE) !== null) {
+        window.addEventListener('pagehide', onPageHideReloadFlag);
+    }
+
+    function siteHost(h) {
+        var lower = String(h).toLowerCase();
+        return lower.indexOf('www.') === 0 ? lower.substring(4) : lower;
+    }
+
+    function isOwnSite(refHost, pageHost) {
+        if (!refHost || !pageHost) return false;
+        var r = siteHost(refHost);
+        var p = siteHost(pageHost);
+        if (r === p) return true;
+        if (r.length > p.length && r.substring(r.length - p.length - 1) === '.' + p) return true;
+        if (p.length > r.length && p.substring(p.length - r.length - 1) === '.' + r) return true;
+        return false;
+    }
+
+    function reloadRefValue(referrer, pageHost) {
+        if (!referrer) return '';
+        var u;
+        try { u = new URL(referrer); } catch (e) { return ''; }
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+        if (!u.hostname || isOwnSite(u.hostname, pageHost)) return '';
+        return base64urlEncode(originAndPath(u));
+    }
+
+    function shouldWriteReloadRef(permissions, identityPresent) {
+        return !!permissions && permissions.analytics === true && identityPresent === true;
+    }
+
+    function shouldWriteReloadFlag(permissions) {
+        return !!permissions && (permissions.analytics === true || permissions.marketing === true);
+    }
+
+    function isIdentityPresent() {
+        return typeof window.BeexyLoader !== 'undefined';
+    }
+
+    /* After a consent write that can turn statistics on (the visitor's choice,
+       the public updateConsent call, the opt-out region default, the no-banner
+       auto-grant): write the handover where Identity runs, or remove it when
+       statistics ends up off. Not called by the cross-domain handoff: Identity
+       reads that first page through its own token. */
+    function syncReloadRef(permissions) {
+        if (shouldWriteReloadRef(permissions, isIdentityPresent())) {
+            var value = reloadRefValue(document.referrer, location.hostname);
+            if (value) setCookie(RELOAD_REF_COOKIE, value, RELOAD_REF_DAYS);
+        } else if (!permissions || permissions.analytics !== true) {
+            if (readCookie(RELOAD_REF_COOKIE) !== null) setCookie(RELOAD_REF_COOKIE, '', -1);
+        }
+    }
 
     /* ═══════════════════════════════════════════════
        PRIVACY-PAGE DETECTION (BACKLOG #13)
@@ -322,6 +405,28 @@
             return keywords[key];
         }
         return original;
+    }
+
+    /* Kept-alive lifetime display (1.15.0). Built per:
+       docs/superpowers/plans/2026-11-13-referrer-handover-build.md
+       Days in a duration the banner can read; null for "Unknown", "Varies",
+       "Session". Where Beexy Identity runs, a cookie it keeps alive shows the
+       longer of its row and keepDays (an unreadable row shows keepDays).
+       Logic-identical to test/unit/keptAliveDuration.fixture.js. */
+    var IDENTITY_KEEP_DAYS_DEFAULT = 390;
+
+    function durationDays(str) {
+        var p = parseDuration(str);
+        if (!p) return null;
+        var perUnit = { second: 1 / 86400, minute: 1 / 1440, hour: 1 / 24, day: 1, week: 7, month: 365 / 12, year: 365 };
+        return p.n * perUnit[p.unit];
+    }
+
+    function keptAliveDuration(duration, isKeptAlive, identityPresent, keepDays) {
+        if (identityPresent !== true || isKeptAlive !== true) return duration;
+        var days = durationDays(duration);
+        if (days !== null && days >= keepDays) return duration;
+        return keepDays + ' days';
     }
 
     var EN_DURATION_LEX = {
@@ -1231,6 +1336,7 @@
         if (isKnownRegion(cfg.region)) {
             setCookie(GEO_COOKIE_NAME, cfg.region, expiry);
         }
+        syncReloadRef(permissions);
     }
 
     /* setCookieHostOnly, used only for the migration delete step that
@@ -1442,6 +1548,7 @@
         if (isKnownRegion(cfg.region)) {
             setCookie(GEO_COOKIE_NAME, cfg.region, consentExpiry);
         }
+        syncReloadRef(permissions);
 
         closeBanner();
         showWidget();
@@ -1461,13 +1568,19 @@
             var reloadNow = new Date().getTime();
             if (shouldScheduleReload(cfg.reloadOnConsent, readReloadGuard(), reloadNow, RELOAD_GUARD_WINDOW_MS)) {
                 markReloadScheduled(reloadNow);
-                // HD-0003-04 / hub DR-18/DR-19: set a transient, server-readable, single-use
-                // reload-dedup flag immediately before the reload. The reload's page_view carries
-                // _bx_reload to sGTM; the Beexy Pixel (0009) forwards it as bx_reload then deletes
-                // it, and BigQuery drops the pre-reload page_view (the 0015 _bx_pc counter, when it
-                // ships, gates off the same signal). Session cookie at the eTLD+1 root (setCookie's
-                // default scope) so a server-side loader on a subdomain reads it.
-                setCookie('_bx_reload', '1');
+                // Reload flag: marks the reload's page so Identity's page counter and the
+                // warehouse count it once; Transport forwards it as bx_reload and deletes it.
+                // Since 1.15.0: written only when statistics or marketing is on after the choice
+                // (after a full refusal Identity counts nothing, and Transport in its default mode
+                // sends only essential data without a visitor id, which the warehouse's
+                // same-visitor rule could not pair anyway), lives 5 minutes, root-domain scope.
+                // A flag found at start-up is removed on pagehide; cancel that first, so it
+                // cannot delete the flag written here for the next page. The reload itself
+                // still follows every choice.
+                if (shouldWriteReloadFlag(permissions)) {
+                    window.removeEventListener('pagehide', onPageHideReloadFlag);
+                    setCookie(RELOAD_FLAG_COOKIE, '1', RELOAD_FLAG_DAYS);
+                }
                 setTimeout(function () {
                     try { window.location.reload(); } catch (e) {}
                 }, RELOAD_AFTER_CONSENT_DELAY);
@@ -2240,8 +2353,9 @@
            on the page (window global OR script-tag src). If so, surface
            ALL its cookies, even ones not yet set in document.cookie -
            for pre-consent transparency ("these are the cookies this site
-           will set if you accept"). Only the 44 curated services carry
-           non-null scriptGlobal / scriptSrc, so this layer is mostly
+           will set if you accept"). Only the 44 curated services, the Beexy
+           service and OpenAI's Pixel (1.15.0) carry non-null scriptGlobal /
+           scriptSrc, so this layer is mostly
            a no-op for OCD-only services in Medium / Large tiers.
            ─────────────────────────────────────────────────── */
         var predicted = [];
@@ -2354,6 +2468,24 @@
         return result;
     }
 
+    /* Identity's kept-alive list from beexy-global.json (identityKeptAlive,
+       1.15.0): its names and lifetime in days. Absent list (fallback or inline
+       config without it): no name counts as kept alive. */
+    function identityKeptAliveConfig() {
+        var k = globalConfig && globalConfig.identityKeptAlive;
+        return (k && Array.isArray(k.names)) ? k : null;
+    }
+
+    function isKeptAliveName(name) {
+        var k = identityKeptAliveConfig();
+        return !!k && k.names.indexOf(name) !== -1;
+    }
+
+    function identityKeepDays() {
+        var k = identityKeptAliveConfig();
+        return (k && typeof k.days === 'number' && k.days > 0) ? k.days : IDENTITY_KEEP_DAYS_DEFAULT;
+    }
+
     function buildCookieTableHTML(cookies) {
         if (!cookies || cookies.length === 0) return '';
 
@@ -2402,7 +2534,7 @@
             } else if (c.purposeKey && c.name === CONSENT_COOKIE_NAME) {
                 durationText = localizeFn(getConsentExpiry() + ' days');
             } else {
-                durationText = localizeFn(c.duration || '');
+                durationText = localizeFn(keptAliveDuration(c.duration || '', isKeptAliveName(c.name), isIdentityPresent(), identityKeepDays()));
             }
             html += '<tr>' +
                 '<td>' + (c.name || '') + '</td>' +
@@ -3954,6 +4086,7 @@
                 if (isKnownRegion(cfg.region)) {
                     setCookie(GEO_COOKIE_NAME, cfg.region, autoGrantExpiry);
                 }
+                syncReloadRef(allGranted);
                 sendConsentEvents('auto-grant', allGranted);
                 return;
             }
@@ -4265,6 +4398,7 @@
                 if (isKnownRegion(cfg.region)) {
                     setCookie(GEO_COOKIE_NAME, cfg.region, apiExpiry);
                 }
+                syncReloadRef(consentState.permissions);
                 sendConsentEvents('api_update', consentState.permissions);
                 logConsent('api_update', consentState.permissions);
             }

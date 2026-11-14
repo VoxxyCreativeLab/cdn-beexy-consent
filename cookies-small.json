@@ -45,6 +45,27 @@
         "provider": "Google",
         "duration": "90 days",
         "purpose": "Stores click information for Google Ads"
+      },
+      {
+        "name": "_gcl_gb",
+        "category": "marketing",
+        "provider": "Google",
+        "duration": "90 days",
+        "purpose": "Stores click information for Google Ads"
+      },
+      {
+        "name": "_gcl_gs",
+        "category": "marketing",
+        "provider": "Google",
+        "duration": "90 days",
+        "purpose": "Stores click information for Google Ads"
+      },
+      {
+        "name": "_gcl_dc",
+        "category": "marketing",
+        "provider": "Google",
+        "duration": "90 days",
+        "purpose": "Stores ad click information for Google's Campaign Manager, Display & Video 360 and Search Ads 360"
       }
     ]
   },
@@ -108,6 +129,27 @@
         "provider": "LinkedIn",
         "duration": "6 months",
         "purpose": "Stores consent of guests for cookies"
+      },
+      {
+        "name": "bcookie",
+        "category": "marketing",
+        "provider": "LinkedIn",
+        "duration": "1 year",
+        "purpose": "Tracks the use of LinkedIn's embedded services"
+      },
+      {
+        "name": "li_sugr",
+        "category": "marketing",
+        "provider": "LinkedIn",
+        "duration": "90 days",
+        "purpose": "Makes a likely match of your identity for LinkedIn ads outside its designated countries"
+      },
+      {
+        "name": "lms_ads",
+        "category": "marketing",
+        "provider": "LinkedIn",
+        "duration": "30 days",
+        "purpose": "Recognises LinkedIn members outside LinkedIn for advertising"
       }
     ]
   },
@@ -185,6 +227,20 @@
         "provider": "TikTok",
         "duration": "13 months",
         "purpose": "Checks if cookies can be placed"
+      },
+      {
+        "name": "ttcsid*",
+        "category": "marketing",
+        "provider": "TikTok",
+        "duration": "13 months",
+        "purpose": "Measures and improves TikTok ad campaigns"
+      },
+      {
+        "name": "ttclid",
+        "category": "marketing",
+        "provider": "TikTok",
+        "duration": "13 months",
+        "purpose": "Measures and improves TikTok ad campaigns"
       }
     ]
   },
@@ -311,6 +367,20 @@
         "provider": "X/Twitter",
         "duration": "2 years",
         "purpose": "Identifies non-logged-in users"
+      },
+      {
+        "name": "_twclid",
+        "category": "marketing",
+        "provider": "X",
+        "duration": "30 days",
+        "purpose": "Stores the X ad click so conversions can be measured"
+      },
+      {
+        "name": "_twpid",
+        "category": "marketing",
+        "provider": "X",
+        "duration": "Unknown",
+        "purpose": "Used by the X pixel for ad measurement"
       }
     ]
   },
@@ -451,6 +521,13 @@
         "provider": "Pinterest",
         "duration": "1 year",
         "purpose": "Enhanced match attribution when cookies are not present"
+      },
+      {
+        "name": "_pin_aem",
+        "category": "marketing",
+        "provider": "Pinterest",
+        "duration": "Unknown",
+        "purpose": "Stores hashed customer details for Pinterest's enhanced matching"
       }
     ]
   },
@@ -486,6 +563,13 @@
         "provider": "Snapchat",
         "duration": "1 year",
         "purpose": "Identifies visitors across domains for cross-site ad targeting"
+      },
+      {
+        "name": "_scclid",
+        "category": "marketing",
+        "provider": "Snapchat",
+        "duration": "Unknown",
+        "purpose": "Stores the Snapchat ad click"
       }
     ]
   },
@@ -549,6 +633,20 @@
         "provider": "Microsoft",
         "duration": "90 days",
         "purpose": "Captures the Microsoft Click ID for conversion attribution"
+      },
+      {
+        "name": "MSPTC",
+        "category": "marketing",
+        "provider": "Microsoft",
+        "duration": "1 year",
+        "purpose": "This cookie registers data on the visitor. The information is used to optimize advertisement relevance."
+      },
+      {
+        "name": "MUID",
+        "category": "marketing",
+        "provider": "Microsoft",
+        "duration": "1 year",
+        "purpose": "Identifies unique web browsers visiting Microsoft sites. These cookies are used for advertising, site analytics, and other operational purposes."
       }
     ]
   },
@@ -801,6 +899,20 @@
         "provider": "Outbrain",
         "duration": "7 days",
         "purpose": "Stores click identifier for conversion attribution"
+      },
+      {
+        "name": "auid",
+        "category": "marketing",
+        "provider": "Outbrain",
+        "duration": "90 days",
+        "purpose": "Holds Outbrain's advertising ID on mobile devices"
+      },
+      {
+        "name": "zuid",
+        "category": "marketing",
+        "provider": "Outbrain",
+        "duration": "1 year",
+        "purpose": "Holds the Outbrain advertising platform's user ID"
       }
     ]
   },
@@ -1109,6 +1221,426 @@
         "provider": "Google",
         "duration": "2 years",
         "purpose": "Stores the user's consent state for Google services"
+      }
+    ]
+  },
+  {
+    "service": "Beexy",
+    "scriptGlobal": "BeexyLoader",
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "_bx_uid",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Recognises your browser on return visits to this site"
+      },
+      {
+        "name": "_bx_uid",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Recognises your browser on return visits to this site"
+      },
+      {
+        "name": "_bx_iat",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Stores when your browser first visited this site"
+      },
+      {
+        "name": "_bx_iat",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Stores when your browser first visited this site"
+      },
+      {
+        "name": "_bx_sid",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "30 minutes",
+        "purpose": "Groups the pages of one visit"
+      },
+      {
+        "name": "_bx_lp",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "30 minutes",
+        "purpose": "Stores the first page of your visit"
+      },
+      {
+        "name": "_bx_ref",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "30 minutes",
+        "purpose": "Stores the website that sent you to this visit"
+      },
+      {
+        "name": "_bx_utm",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "90 days",
+        "purpose": "Stores the campaign of the link that brought you here"
+      },
+      {
+        "name": "_bx_ft",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Stores the first page, source and campaign of your first visit"
+      },
+      {
+        "name": "_bx_la",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Stores the time of your last visit"
+      },
+      {
+        "name": "_bx_pc",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Counts the pages you view"
+      },
+      {
+        "name": "_bx_sc",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Counts your visits"
+      },
+      {
+        "name": "_bx_win_start",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Marks the start of the period in which pages and visits are counted"
+      },
+      {
+        "name": "_bx_churn",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Counts returns after a long absence"
+      },
+      {
+        "name": "_bx_first_ga",
+        "category": "analytics",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of the Google Analytics browser ID"
+      },
+      {
+        "name": "_bx_click_*",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "90 days",
+        "purpose": "Stores the ad click that brought you here, so a later purchase or sign-up can be credited to the ad"
+      },
+      {
+        "name": "_bx_first_fbp",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_au",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_scid",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_ttp",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_uetvid",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_gcl_aw",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_fpgclaw",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_fbc",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "_bx_first_obref",
+        "category": "marketing",
+        "provider": "Beexy Identity",
+        "duration": "390 days",
+        "purpose": "Keeps a first-party copy of an advertising platform's browser or click ID"
+      },
+      {
+        "name": "FPGCLAW",
+        "category": "marketing",
+        "provider": "Google",
+        "duration": "90 days",
+        "purpose": "Stores click information for Google Ads"
+      },
+      {
+        "name": "__oppref",
+        "category": "marketing",
+        "provider": "OpenAI",
+        "duration": "30 days",
+        "purpose": "Stores the ChatGPT ad click reference for conversion attribution"
+      },
+      {
+        "name": "_bx_reload_ref",
+        "category": "analytics",
+        "provider": "Beexy Consent",
+        "duration": "30 minutes",
+        "purpose": "Carries the website you came from to the next page, so the source of your visit is recorded"
+      },
+      {
+        "name": "_bx_reload",
+        "category": "analytics",
+        "provider": "Beexy Consent",
+        "duration": "5 minutes",
+        "purpose": "Marks the reload after your cookie choice, so that page is counted once"
+      },
+      {
+        "name": "_bx_reload",
+        "category": "marketing",
+        "provider": "Beexy Consent",
+        "duration": "5 minutes",
+        "purpose": "Marks the reload after your cookie choice, so that page is counted once"
+      }
+    ]
+  },
+  {
+    "service": "ChatGPT Ads Pixel",
+    "scriptGlobal": "oaiq",
+    "scriptSrc": "bzrcdn.openai.com/sdk/oaiq.min.js",
+    "cookies": [
+      {
+        "name": "__oppref",
+        "category": "marketing",
+        "provider": "OpenAI",
+        "duration": "30 days",
+        "purpose": "Stores the ChatGPT ad click reference for conversion attribution"
+      },
+      {
+        "name": "__obref",
+        "category": "marketing",
+        "provider": "OpenAI",
+        "duration": "1 year",
+        "purpose": "Random browser identifier for ChatGPT ad conversion measurement"
+      }
+    ]
+  },
+  {
+    "service": "Google server-side tagging",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "FPAU",
+        "category": "marketing",
+        "provider": "Google",
+        "duration": "90 days",
+        "purpose": "Measures Google ad results through the site's own server"
+      },
+      {
+        "name": "FPLC",
+        "category": "analytics",
+        "provider": "Google",
+        "duration": "20 hours",
+        "purpose": "Links Google Analytics visits across the site's own domains"
+      }
+    ]
+  },
+  {
+    "service": "Yandex Metrica",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "_ym_uid",
+        "category": "analytics",
+        "provider": "Yandex",
+        "duration": "1 year",
+        "purpose": "Used for identifying site users"
+      },
+      {
+        "name": "_ym_d",
+        "category": "analytics",
+        "provider": "Yandex",
+        "duration": "1 year",
+        "purpose": "Saves the date of the user's first site session"
+      }
+    ]
+  },
+  {
+    "service": "Awin",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "_aw_m_*",
+        "category": "marketing",
+        "provider": "Awin",
+        "duration": "Varies",
+        "purpose": "Records the affiliate click that referred you, so the partner is credited"
+      },
+      {
+        "name": "_aw_sn_*",
+        "category": "marketing",
+        "provider": "Awin",
+        "duration": "Varies",
+        "purpose": "Records the click from a cashback or reward partner, so the partner is credited"
+      },
+      {
+        "name": "awpv*",
+        "category": "marketing",
+        "provider": "Awin",
+        "duration": "Varies",
+        "purpose": "Records an affiliate ad you saw, so the partner can be credited if you did not click"
+      }
+    ]
+  },
+  {
+    "service": "CJ",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "cje",
+        "category": "marketing",
+        "provider": "CJ",
+        "duration": "13 months",
+        "purpose": "Stores the CJ affiliate click so the partner is credited"
+      }
+    ]
+  },
+  {
+    "service": "Impact",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "IR_PI",
+        "category": "marketing",
+        "provider": "Impact",
+        "duration": "365 days",
+        "purpose": "Stores an ID and time stamp so Impact can credit the right partner"
+      }
+    ]
+  },
+  {
+    "service": "Tradedoubler",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "TRADEDOUBLER",
+        "category": "marketing",
+        "provider": "Tradedoubler",
+        "duration": "30 days",
+        "purpose": "Records which campaign sent you, so sales are credited to the publisher"
+      },
+      {
+        "name": "tduid",
+        "category": "marketing",
+        "provider": "Tradedoubler",
+        "duration": "30 days",
+        "purpose": "Records which campaign sent you, so sales are credited to the publisher"
+      }
+    ]
+  },
+  {
+    "service": "PartnerStack",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "ps_xid",
+        "category": "marketing",
+        "provider": "PartnerStack",
+        "duration": "90 days",
+        "purpose": "Stores the PartnerStack partner referral"
+      }
+    ]
+  },
+  {
+    "service": "FirstPromoter",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "_fprom_tid",
+        "category": "marketing",
+        "provider": "FirstPromoter",
+        "duration": "60 days",
+        "purpose": "Stores the FirstPromoter referral"
+      },
+      {
+        "name": "fprom_tid",
+        "category": "marketing",
+        "provider": "FirstPromoter",
+        "duration": "60 days",
+        "purpose": "Stores the FirstPromoter referral"
+      },
+      {
+        "name": "_fprom_ref",
+        "category": "marketing",
+        "provider": "FirstPromoter",
+        "duration": "Unknown",
+        "purpose": "Stores the FirstPromoter referral"
+      },
+      {
+        "name": "fprom_ref",
+        "category": "marketing",
+        "provider": "FirstPromoter",
+        "duration": "Unknown",
+        "purpose": "Stores the FirstPromoter referral"
+      }
+    ]
+  },
+  {
+    "service": "ShareASale",
+    "scriptGlobal": null,
+    "scriptSrc": null,
+    "cookies": [
+      {
+        "name": "__sscid",
+        "category": "marketing",
+        "provider": "ShareASale",
+        "duration": "30 days",
+        "purpose": "Stores the ShareASale affiliate click"
       }
     ]
   }
