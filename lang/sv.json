@@ -23,6 +23,7 @@
     "privacyLink": "Se vår {link} för mer information.",
     "privacyLinkText": "Integritetspolicy",
     "controllerText": "{controller} är personuppgiftsansvarig för behandlingen av dina personuppgifter.",
+    "perimeterText": "Ditt samtycke gäller för följande webbplatser, som har samma personuppgiftsansvariga och samma ändamål: {domains}. Du kan granska eller återkalla det på vilken av dem som helst.",
     "featuresLinkText": "Juridiska detaljer →"
   },
   "categories": {

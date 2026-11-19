@@ -23,6 +23,7 @@
     "privacyLink": "Se vores {link} for mere information.",
     "privacyLinkText": "Privatlivspolitik",
     "controllerText": "{controller} er dataansvarlig for behandlingen af dine personoplysninger.",
+    "perimeterText": "Dit samtykke gælder for følgende websteder, som har samme dataansvarlige og de samme formål: {domains}. Du kan gennemgå det eller trække det tilbage på ethvert af dem.",
     "featuresLinkText": "Juridiske detaljer →"
   },
   "categories": {

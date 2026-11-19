@@ -23,6 +23,7 @@
     "privacyLink": "Več informacij najdete v naši {link}.",
     "privacyLinkText": "Politiki zasebnosti",
     "controllerText": "{controller} je upravljavec podatkov, odgovoren za obdelavo vaših osebnih podatkov.",
+    "perimeterText": "Vaše soglasje velja za naslednja spletna mesta, ki imajo istega upravljavca podatkov in iste namene: {domains}. Pregledate ali prekličete ga lahko na katerem koli od njih.",
     "featuresLinkText": "Pravne podrobnosti →"
   },
   "categories": {

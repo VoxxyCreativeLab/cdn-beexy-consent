@@ -23,6 +23,7 @@
     "privacyLink": "Daugiau informacijos rasite mūsų {link}.",
     "privacyLinkText": "Privatumo politikoje",
     "controllerText": "{controller} yra jūsų asmens duomenų valdytojas, atsakingas už jų tvarkymą.",
+    "perimeterText": "Jūsų sutikimas galioja šioms svetainėms, kurių duomenų valdytojas ir tikslai yra tie patys: {domains}. Galite jį peržiūrėti arba atšaukti bet kurioje iš jų.",
     "featuresLinkText": "Teisinė informacija →"
   },
   "categories": {

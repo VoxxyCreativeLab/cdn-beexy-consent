@@ -23,6 +23,7 @@
     "privacyLink": "Raadpleeg ons {link} voor meer informatie.",
     "privacyLinkText": "Privacybeleid",
     "controllerText": "{controller} is de verwerkingsverantwoordelijke voor de verwerking van uw persoonsgegevens.",
+    "perimeterText": "Uw toestemming geldt voor de volgende websites, die dezelfde verwerkingsverantwoordelijke en dezelfde doeleinden hebben: {domains}. U kunt uw toestemming op elk van deze websites bekijken of intrekken.",
     "featuresLinkText": "Juridische details →"
   },
   "categories": {

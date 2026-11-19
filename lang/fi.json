@@ -23,6 +23,7 @@
     "privacyLink": "Lisätietoja on {link}.",
     "privacyLinkText": "Tietosuojakäytännössämme",
     "controllerText": "{controller} on henkilötietojesi käsittelystä vastaava rekisterinpitäjä.",
+    "perimeterText": "Suostumuksesi koskee seuraavia sivustoja, joilla on sama rekisterinpitäjä ja samat käyttötarkoitukset: {domains}. Voit tarkistaa tai peruuttaa sen millä tahansa niistä.",
     "featuresLinkText": "Oikeudelliset tiedot →"
   },
   "categories": {

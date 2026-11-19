@@ -23,6 +23,7 @@
     "privacyLink": "Se vår {link} for mer informasjon.",
     "privacyLinkText": "Personvernerklæring",
     "controllerText": "{controller} er behandlingsansvarlig for behandlingen av dine personopplysninger.",
+    "perimeterText": "Samtykket ditt gjelder for følgende nettsteder, som har samme behandlingsansvarlige og de samme formålene: {domains}. Du kan se gjennom eller trekke det tilbake på hvilket som helst av dem.",
     "featuresLinkText": "Juridiske detaljer →"
   },
   "categories": {

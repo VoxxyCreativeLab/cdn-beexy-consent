@@ -23,6 +23,7 @@
     "privacyLink": "如需了解更多信息，请参阅我们的{link}。",
     "privacyLinkText": "隐私政策",
     "controllerText": "{controller} 是负责处理您个人数据的数据控制者。",
+    "perimeterText": "您的同意适用于以下网站，这些网站共用同一数据控制者，且目的相同：{domains}。您可以在其中任何一个网站上查看或撤回同意。",
     "featuresLinkText": "法律详情 →"
   },
   "categories": {

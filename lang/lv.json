@@ -23,6 +23,7 @@
     "privacyLink": "Plašāku informāciju skatiet mūsu {link}.",
     "privacyLinkText": "Privātuma politikā",
     "controllerText": "{controller} ir jūsu personas datu apstrādes pārzinis.",
+    "perimeterText": "Jūsu piekrišana attiecas uz šādām vietnēm, kurām ir viens un tas pats datu pārzinis un tie paši nolūki: {domains}. Varat to pārskatīt vai atsaukt jebkurā no tām.",
     "featuresLinkText": "Juridiskā informācija →"
   },
   "categories": {

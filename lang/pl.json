@@ -23,6 +23,7 @@
     "privacyLink": "Więcej informacji znajdziesz w naszej {link}.",
     "privacyLinkText": "Polityce prywatności",
     "controllerText": "{controller} jest administratorem danych odpowiedzialnym za przetwarzanie Twoich danych osobowych.",
+    "perimeterText": "Twoja zgoda obowiązuje w następujących witrynach, które mają tego samego administratora danych i te same cele: {domains}. Możesz ją przejrzeć lub wycofać w dowolnej z nich.",
     "featuresLinkText": "Szczegóły prawne →"
   },
   "categories": {

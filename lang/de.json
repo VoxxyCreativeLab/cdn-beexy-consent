@@ -23,6 +23,7 @@
     "privacyLink": "Weitere Informationen finden Sie in unserer {link}.",
     "privacyLinkText": "Datenschutzerklärung",
     "controllerText": "{controller} ist der für die Verarbeitung Ihrer personenbezogenen Daten Verantwortliche.",
+    "perimeterText": "Ihre Einwilligung gilt für die folgenden Websites, die denselben Verantwortlichen und dieselben Zwecke haben: {domains}. Sie können sie auf jeder dieser Websites einsehen oder widerrufen.",
     "featuresLinkText": "Rechtliche Details →"
   },
   "categories": {

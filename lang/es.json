@@ -23,6 +23,7 @@
     "privacyLink": "Para más información, consulte nuestra {link}.",
     "privacyLinkText": "Política de Privacidad",
     "controllerText": "{controller} es el responsable del tratamiento de sus datos personales.",
+    "perimeterText": "Su consentimiento se aplica a los siguientes sitios, que comparten el mismo responsable del tratamiento y los mismos fines: {domains}. Puede revisarlo o retirarlo en cualquiera de ellos.",
     "featuresLinkText": "Detalles legales →"
   },
   "categories": {

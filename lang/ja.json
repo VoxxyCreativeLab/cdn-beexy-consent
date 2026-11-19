@@ -23,6 +23,7 @@
     "privacyLink": "詳しくは{link}をご覧ください。",
     "privacyLinkText": "プライバシーポリシー",
     "controllerText": "{controller} は、お客様の個人データの処理について責任を負うデータ管理者です。",
+    "perimeterText": "お客様の同意は、同じデータ管理者と同じ目的を持つ以下のサイトに適用されます：{domains}。いずれのサイトでも、同意の確認や撤回ができます。",
     "featuresLinkText": "法的詳細 →"
   },
   "categories": {

@@ -23,6 +23,7 @@
     "privacyLink": "Pentru mai multe informații, consultați {link} noastră.",
     "privacyLinkText": "Politica de confidențialitate",
     "controllerText": "{controller} este operatorul de date responsabil pentru prelucrarea datelor dvs. personale.",
+    "perimeterText": "Consimțământul dvs. se aplică următoarelor site-uri, care au același operator de date și aceleași scopuri: {domains}. Îl puteți revizui sau retrage pe oricare dintre ele.",
     "featuresLinkText": "Detalii legale →"
   },
   "categories": {

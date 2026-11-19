@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.15.0';
+    var BANNER_VERSION = '1.15.1';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -794,7 +794,7 @@
                     privacyLink: 'For more information, see our {link}.',
                     privacyLinkText: 'Privacy Policy',
                     controllerText: '{controller} is the data controller responsible for the processing of your personal data.',
-                    perimeterText: 'Your consent applies across the following sites, operated by the same data controller for the same purposes: {domains}. You can review or withdraw it on any of them.'
+                    perimeterText: 'Your consent applies across the following sites, which share one data controller and the same purposes: {domains}. You can review or withdraw it on any of them.'
                 },
                 categories: {
                     necessary: { name: 'Necessary', description: 'Required for the website to function.' },
@@ -2935,7 +2935,10 @@
            test/unit/perimeterDisclosure.fixture.js. Keep the two in sync.
            Turns the siblingDomains SIMPLE_TABLE rows into the comma-separated
            perimeter list. Empty => no perimeter line, so single-domain installs
-           (no siblingDomains configured) behave exactly as before F2. */
+           (no siblingDomains configured) behave exactly as before F2.
+           1.15.1 (operator decision 2026-11-19): drawn on the About tab only, and in
+           every language (about.perimeterText in all 32 language files).
+           Built per: docs/superpowers/plans/2026-11-19-perimeter-line-1.15.1-build.md */
         function formatPerimeterDomains(siblingDomains) {
             if (!Array.isArray(siblingDomains)) return '';
             var seen = {};
@@ -3952,7 +3955,6 @@
                         getText('banner.description') +
                         privacyLink +
                     '</p>' +
-                    perimeterText +
                 '</div>' +
                 '<div class="beexy-consent-actions">' +
                     consentButtons +

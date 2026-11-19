@@ -23,6 +23,7 @@
     "privacyLink": "Další informace naleznete v našich {link}.",
     "privacyLinkText": "Zásadách ochrany osobních údajů",
     "controllerText": "{controller} je správcem údajů odpovědným za zpracování vašich osobních údajů.",
+    "perimeterText": "Váš souhlas platí pro následující weby, které mají stejného správce údajů a stejné účely: {domains}. Můžete jej zkontrolovat nebo odvolat na kterémkoli z nich.",
     "featuresLinkText": "Právní podrobnosti →"
   },
   "categories": {

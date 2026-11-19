@@ -23,6 +23,7 @@
     "privacyLink": "Để biết thêm thông tin, vui lòng xem {link} của chúng tôi.",
     "privacyLinkText": "Chính sách Bảo mật",
     "controllerText": "{controller} là đơn vị kiểm soát dữ liệu chịu trách nhiệm xử lý dữ liệu cá nhân của bạn.",
+    "perimeterText": "Sự đồng ý của bạn áp dụng cho các trang web sau, có cùng đơn vị kiểm soát dữ liệu và cùng mục đích: {domains}. Bạn có thể xem lại hoặc rút lại sự đồng ý trên bất kỳ trang nào trong số đó.",
     "featuresLinkText": "Chi tiết pháp lý →"
   },
   "categories": {

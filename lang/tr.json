@@ -23,6 +23,7 @@
     "privacyLink": "Daha fazla bilgi için {link} sayfamızı inceleyin.",
     "privacyLinkText": "Gizlilik Politikası",
     "controllerText": "{controller}, kişisel verilerinizin işlenmesinden sorumlu veri sorumlusudur.",
+    "perimeterText": "Onayınız, aynı veri sorumlusuna ve aynı amaçlara sahip olan şu sitelerde geçerlidir: {domains}. Onayınızı bu sitelerin herhangi birinde inceleyebilir veya geri çekebilirsiniz.",
     "featuresLinkText": "Yasal ayrıntılar →"
   },
   "categories": {

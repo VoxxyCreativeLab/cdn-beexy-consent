@@ -23,6 +23,7 @@
     "privacyLink": "További információkért tekintse meg {link}.",
     "privacyLinkText": "Adatvédelmi szabályzatunkat",
     "controllerText": "{controller} az Ön személyes adatainak kezeléséért felelős adatkezelő.",
+    "perimeterText": "Hozzájárulása a következő webhelyekre vonatkozik, amelyeknek ugyanaz az adatkezelője és ugyanazok a céljai: {domains}. Bármelyikükön áttekintheti vagy visszavonhatja.",
     "featuresLinkText": "Jogi részletek →"
   },
   "categories": {
