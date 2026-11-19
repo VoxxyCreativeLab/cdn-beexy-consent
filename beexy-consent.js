@@ -23,7 +23,7 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.15.1';
+    var BANNER_VERSION = '1.15.2';
 
     /* Banner-owned cookie name. Single source of truth so the
        migration block, cfg, AUTO_NECESSARY_COOKIES, and the
@@ -1848,6 +1848,10 @@
        ═══════════════════════════════════════════════ */
 
     var HANDOFF_PARAM = 'bx_hs';
+    // 1.15.2: the token's second copy after '#' (bxhs_<token>). Letters, digits, '-'
+    // and '_' only, so site scripts that treat the part after '#' as an element id do
+    // not throw. Built per: docs/superpowers/plans/2026-11-19-handoff-carriers-1.16.0-build.md
+    var HANDOFF_HASH_PREFIX = 'bxhs_';
     var HANDOFF_TOKEN_VERSION = 1;
     var HANDOFF_FRESHNESS_MS = 120000; // 2 minutes, matches Google's _gl linker TTL
 
@@ -1994,9 +1998,12 @@
 
     /* ─────────────────────────────────────────────
        HANDOFF, DESTINATION APPLY (HD-0003-14)
-       getHandoffParam / stripHandoffParam / destinationWouldPromptFor are
+       getHandoffParam / stripHandoffParam / getHandoffHash / stripHandoffHash /
+       splitUrlParts / collectHandoffCandidates / hasHandoffCopy /
+       withoutHandoffCopies / destinationWouldPromptFor are
        logic-identical companions to test/unit/handoffApply.fixture.js (mirror
-       in the same commit). The three functions below them are the browser glue
+       in the same commit); test/unit/handoffCarriers.test.js checks the text.
+       The three functions below them are the browser glue
        (window.location / history / cookie / events), verified in the test rig.
        ───────────────────────────────────────────── */
 
@@ -2037,6 +2044,84 @@
         return base + (kept.length ? '?' + kept.join('&') : '') + hash;
     }
 
+    /* 1.15.2: the token's copy after '#' (bxhs_<token>), or null. Takes the hash with
+       or without its leading '#'. Reads only the token's own characters (base64url:
+       letters, digits, '-', '_'), so text another script adds after it does not count. */
+    function getHandoffHash(hash, prefix) {
+        var h = String(hash == null ? '' : hash);
+        if (h.charAt(0) === '#') { h = h.slice(1); }
+        if (!prefix || h.indexOf(prefix) !== 0) { return null; }
+        var m = h.slice(prefix.length).match(/^[A-Za-z0-9_-]+/);
+        return m ? m[0] : null;
+    }
+
+    /* 1.15.2: the URL without its '#bxhs_<token>' copy. Any other text after '#' stays
+       (one '&' right after the token goes with it). */
+    function stripHandoffHash(url, prefix) {
+        var u = String(url == null ? '' : url);
+        var hashIdx = u.indexOf('#');
+        if (!prefix || hashIdx === -1) { return u; }
+        var frag = u.slice(hashIdx + 1);
+        if (frag.indexOf(prefix) !== 0) { return u; }
+        var rest = frag.slice(prefix.length);
+        var m = rest.match(/^[A-Za-z0-9_-]*/);
+        rest = rest.slice(m[0].length);
+        if (rest.charAt(0) === '&') { rest = rest.slice(1); }
+        return u.slice(0, hashIdx) + (rest ? '#' + rest : '');
+    }
+
+    /* 1.15.2: the '?' part and the '#' part of a URL string ('' when absent). */
+    function splitUrlParts(url) {
+        var u = String(url == null ? '' : url);
+        var hash = '';
+        var hashIdx = u.indexOf('#');
+        if (hashIdx !== -1) { hash = u.slice(hashIdx); u = u.slice(0, hashIdx); }
+        var qIdx = u.indexOf('?');
+        return { search: qIdx === -1 ? '' : u.slice(qIdx), hash: hash };
+    }
+
+    /* 1.15.2: every place the browser keeps the arrival address, in this order: the
+       '?' part, the '#' part, the browser's record of the loaded address (a script may
+       have rewritten the address since), and the previous page's '?' part when that
+       page is on this origin (a script redirect or meta refresh). Returns each distinct
+       raw token once, with where it was found. */
+    function collectHandoffCandidates(src, paramName, prefix) {
+        src = src || {};
+        var out = [];
+        var seen = {};
+        function add(value, from) {
+            if (!value || Object.prototype.hasOwnProperty.call(seen, value)) { return; }
+            seen[value] = true;
+            out.push({ value: value, from: from });
+        }
+        add(getHandoffParam(src.search, paramName), 'query');
+        add(getHandoffHash(src.hash, prefix), 'hash');
+        if (src.navUrl) {
+            var nav = splitUrlParts(src.navUrl);
+            add(getHandoffParam(nav.search, paramName), 'page-record');
+            add(getHandoffHash(nav.hash, prefix), 'page-record');
+        }
+        if (src.referrer && src.origin && String(src.referrer).indexOf(src.origin + '/') === 0) {
+            add(getHandoffParam(splitUrlParts(src.referrer).search, paramName), 'previous-page');
+        }
+        return out;
+    }
+
+    /* 1.15.2: does the URL carry a copy of the token, after '?' or after '#'? */
+    function hasHandoffCopy(url, paramName, prefix) {
+        var parts = splitUrlParts(url);
+        if (getHandoffParam(parts.search, paramName) !== null) { return true; }
+        return !!prefix && parts.hash.indexOf('#' + prefix) === 0;
+    }
+
+    /* 1.15.2: the URL without any copy of the token. A URL without a copy comes back
+       exactly as it is, so an address the banner did not decorate is never rewritten. */
+    function withoutHandoffCopies(url, paramName, prefix) {
+        if (url == null) { return null; }
+        if (!hasHandoffCopy(url, paramName, prefix)) { return url; }
+        return stripHandoffHash(stripHandoffParam(url, paramName), prefix);
+    }
+
     function destinationWouldPromptFor(parsed, cfgVersion, expired) {
         if (!parsed) { return true; }
         if (parsed.version !== cfgVersion) { return true; }
@@ -2045,17 +2130,41 @@
         return true;
     }
 
-    /* Read bx_hs from the current URL, ALWAYS strip it (valid or not, design
-       section 8), and return the decoded token object or null. */
+    /* Read the token from every place the browser keeps the arrival address
+       (collectHandoffCandidates, 1.15.2), ALWAYS strip both copies from the current
+       address (valid or not, design section 8), and return the decoded tokens in
+       order, each with where it was found. Empty when there is none. */
     function consumeHandoffFromUrl() {
-        var raw = getHandoffParam(location.search, HANDOFF_PARAM);
-        if (!raw) { return null; }
+        var navUrl = '';
         try {
-            if (window.history && typeof window.history.replaceState === 'function') {
-                window.history.replaceState(null, '', stripHandoffParam(location.href, HANDOFF_PARAM));
-            }
-        } catch (e) { /* replaceState unavailable: token still consumed, no leak of behavior */ }
-        return decodeHandoffToken(raw);
+            var navEntries = (window.performance && typeof window.performance.getEntriesByType === 'function')
+                ? window.performance.getEntriesByType('navigation') : [];
+            if (navEntries && navEntries.length && typeof navEntries[0].name === 'string') { navUrl = navEntries[0].name; }
+        } catch (e) { navUrl = ''; }
+        var found = collectHandoffCandidates({
+            search: location.search,
+            hash: location.hash,
+            navUrl: navUrl,
+            referrer: document.referrer,
+            origin: location.protocol + '//' + location.host
+        }, HANDOFF_PARAM, HANDOFF_HASH_PREFIX);
+        // Only an address that carries a copy is rewritten, and the page's own history
+        // data is kept (review fix, 1.15.2).
+        var here = location.href;
+        var cleaned = withoutHandoffCopies(here, HANDOFF_PARAM, HANDOFF_HASH_PREFIX);
+        if (cleaned !== here) {
+            try {
+                if (window.history && typeof window.history.replaceState === 'function') {
+                    window.history.replaceState(window.history.state, '', cleaned);
+                }
+            } catch (e) { /* replaceState unavailable: tokens still consumed, no leak of behavior */ }
+        }
+        var tokens = [];
+        for (var i = 0; i < found.length; i++) {
+            var token = decodeHandoffToken(found[i].value);
+            if (token) { tokens.push({ token: token, from: found[i].from }); }
+        }
+        return tokens;
     }
 
     /* D-A1-4: does this domain currently have a valid, explicit, non-expired
@@ -2151,13 +2260,16 @@
        section 5), to revisit in a later increment.
        ───────────────────────────────────────────── */
 
-    function decorateLinkHref(href, tokenValue, paramName) {
-        var stripped = stripHandoffParam(href, paramName);
+    function decorateLinkHref(href, tokenValue, paramName, hashPrefix) {
+        var stripped = stripHandoffHash(stripHandoffParam(href, paramName), hashPrefix);
         var hash = '';
         var hashIdx = stripped.indexOf('#');
         var base = stripped;
         if (hashIdx !== -1) { hash = stripped.slice(hashIdx); base = stripped.slice(0, hashIdx); }
         var sep = base.indexOf('?') === -1 ? '?' : '&';
+        // 1.15.2: a second copy after '#' survives a redirect that drops the '?' part.
+        // Only when the link has no '#' of its own, so an anchor or route keeps working.
+        if (!hash && hashPrefix) { hash = '#' + hashPrefix + tokenValue; }
         return base + sep + paramName + '=' + tokenValue + hash;
     }
 
@@ -2192,19 +2304,31 @@
                     schemaVersion: cfg.version,
                     uid: readCookie('_bx_uid') // present only when the Webloader has set it; omitted otherwise
                 }));
-                // Decorate for THIS activation only, then restore. Navigation reads
-                // the href synchronously during the event, so a macrotask restore
-                // runs AFTER the browser has captured the decorated URL. This keeps
-                // the token (which carries _bx_uid) out of the live DOM afterwards,
-                // so a later copy-link / share / scrape cannot lift it. (A browser
-                // that snapshots the URL at mousedown rather than at click/auxclick
-                // is a documented limitation, like SPA and form-post navigations.)
-                var originalHref = anchor.getAttribute('href');
-                anchor.href = decorateLinkHref(anchor.href, tokenValue, HANDOFF_PARAM);
-                setTimeout(function () {
-                    if (originalHref === null) { anchor.removeAttribute('href'); }
-                    else { anchor.setAttribute('href', originalHref); }
-                }, 0);
+                // 1.15.2: the decorated address stays for the token's 2 valid minutes,
+                // then the original comes back. A site script that cancels the click and
+                // navigates later reads the address at that later moment (GTM's "Wait for
+                // tags" on a link-click trigger, gevel.nl 2026-11-19), so putting the
+                // original back in the next task lost the token. One pending put-back per
+                // link. The kept original is used only while the link still holds what the
+                // banner wrote; if a site script changed the link meanwhile, its change stays
+                // and only the token copies are taken out (also for a copied link element).
+                var pending = anchor.__beexyHandoffRestore;
+                var current = anchor.getAttribute('href');
+                if (pending) { clearTimeout(pending.timer); }
+                var originalHref = (pending && current === pending.decorated) ? pending.href : withoutHandoffCopies(current, HANDOFF_PARAM, HANDOFF_HASH_PREFIX);
+                anchor.href = decorateLinkHref(anchor.href, tokenValue, HANDOFF_PARAM, HANDOFF_HASH_PREFIX);
+                var decorated = anchor.getAttribute('href');
+                anchor.__beexyHandoffRestore = {
+                    href: originalHref,
+                    decorated: decorated,
+                    timer: setTimeout(function () {
+                        anchor.__beexyHandoffRestore = null;
+                        var now = anchor.getAttribute('href');
+                        var back = now === decorated ? originalHref : withoutHandoffCopies(now, HANDOFF_PARAM, HANDOFF_HASH_PREFIX);
+                        if (back === null) { anchor.removeAttribute('href'); }
+                        else if (back !== now) { anchor.setAttribute('href', back); }
+                    }, HANDOFF_FRESHNESS_MS)
+                };
                 if (window.beexyConsentEnableDebugLogging) {
                     console.log('[Beexy Consent] handoff link decorated -> ' + anchor.hostname);
                 }
@@ -2252,9 +2376,25 @@
            the feature is off this block is inert, so behaviour is identical to
            1.12.0. */
         if (cfg.crossDomainHandoff) {
-            var inboundToken = consumeHandoffFromUrl();
-            if (inboundToken && destinationWouldPrompt() && applyHandoffConsent(inboundToken)) {
-                return;
+            /* 1.15.2: the token may come from the '?' part, the '#' part, the
+               browser's record of the loaded address or the previous page on this
+               origin; each distinct token is tried in that order. */
+            var inbound = consumeHandoffFromUrl();
+            if (inbound.length && destinationWouldPrompt()) {
+                for (var hi = 0; hi < inbound.length; hi++) {
+                    if (window.beexyConsentEnableDebugLogging) {
+                        console.log('[Beexy Consent] handoff token found in ' + inbound[hi].from);
+                    }
+                    try {
+                        if (applyHandoffConsent(inbound[hi].token)) { return; }
+                    } catch (e) {
+                        // A token that passes the checks but cannot be applied (for example a
+                        // crafted one without purposes) must never stop the banner from starting.
+                        if (window.beexyConsentEnableDebugLogging) {
+                            console.log('[Beexy Consent] handoff token unreadable, normal prompt');
+                        }
+                    }
+                }
             }
         }
         var existing = readCookie(cfg.cookieName);
