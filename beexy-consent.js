@@ -23,10 +23,10 @@
        reach 2.x (a literal @v1 tag is an immutable pin, not a floating
        alias). See CLAUDE.md Rule 11 and LESSONS.md (2026-05-29 incident;
        2026-09-18 immutable-pin correction). */
-    var BANNER_VERSION = '1.15.2';
+    var BANNER_VERSION = '1.16.0';
 
     /* Banner-owned cookie name. Single source of truth so the
-       migration block, cfg, AUTO_NECESSARY_COOKIES, and the
+       start-up upgrade, cfg, AUTO_NECESSARY_COOKIES, and the
        unknown-cookies filter (BACKLOG #21) all reference the
        same literal. GEO_COOKIE_NAME stays declared near the
        geo-fetch helpers (see ~L473). */
@@ -464,8 +464,10 @@
     }
 
     /* ═══════════════════════════════════════════════
-       COOKIE MIGRATION, host-only → root-scoped
-       Runs once at script init for both beexy_consent and beexy_geo.
+       COOKIE SCOPE LOG
+       logScopeDecision runs once at script init. logMigration reports the
+       one-time upgrade of an older consent record (upgradeConsentRecord,
+       1.16.0), which also deletes any host-only copy of both cookies.
        ═══════════════════════════════════════════════ */
 
     function logScopeDecision(scope, source) {
@@ -476,7 +478,7 @@
 
     function logMigration(name) {
         if (window.beexyConsentEnableDebugLogging) {
-            console.log('[Beexy Consent] Migration: rewrote ' + name + ' at root scope, deleted host-only');
+            console.log('[Beexy Consent] Upgrade: added exp and dom to ' + name + (ROOT_DOMAIN ? ', deleted host-only copies' : ''));
         }
     }
 
@@ -487,30 +489,6 @@
         logScopeDecision('host-only', 'localhost / IP / single-label / unknown');
     }
 
-    /* Migrate beexy_consent and beexy_geo from host-only to root-scoped if
-       a legacy cookie exists and ROOT_DOMAIN is now usable.
-       After migration the host-only cookie is gone, but readCookie still
-       returns the root-scoped value, so the if-guards remain true and
-       rewrite on every load. The rewrite is idempotent (same value, same
-       scope); the host-only delete attempt is a browser no-op. Accepted cost. */
-    if (ROOT_DOMAIN) {
-        // beexy_consent, uses 365-day expiry (config-driven expiry isn't
-        // available at script-init time; the next legitimate consent
-        // action overwrites with the proper expiry anyway).
-        var existingConsent = readCookie(CONSENT_COOKIE_NAME);
-        if (existingConsent) {
-            setCookie(CONSENT_COOKIE_NAME, existingConsent, 365);
-            setCookieHostOnly(CONSENT_COOKIE_NAME, '', -1);
-            logMigration(CONSENT_COOKIE_NAME);
-        }
-        // beexy_geo, fixed 30-day expiry per GEO_COOKIE_EXPIRY semantics.
-        var existingGeo = readCookie('beexy_geo');
-        if (existingGeo) {
-            setCookie('beexy_geo', existingGeo, 30);
-            setCookieHostOnly('beexy_geo', '', -1);
-            logMigration('beexy_geo');
-        }
-    }
 
     var cfg = {
         /* COOKIE SCHEMA VERSION (load-bearing). NEVER bump for a release.
@@ -1323,7 +1301,7 @@
         consentState.permissions = permissions;
         consentState.explicitConsent = false;
         window.beexyConsent = consentState;
-        setCookie(cfg.cookieName, JSON.stringify({
+        writeConsentRecord({
             cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
@@ -1331,7 +1309,7 @@
             timestamp: new Date().toISOString(),
             region: cfg.region,
             gpcApplied: isGpcEnabled()
-        }), expiry);
+        }, expiry);
         // Never store a failed lookup ("unknown") as the region (backlog 70).
         if (isKnownRegion(cfg.region)) {
             setCookie(GEO_COOKIE_NAME, cfg.region, expiry);
@@ -1339,8 +1317,9 @@
         syncReloadRef(permissions);
     }
 
-    /* setCookieHostOnly, used only for the migration delete step that
-       clears legacy host-only cookies. Never use in new code paths. */
+    /* setCookieHostOnly, used only to delete legacy host-only copies (the
+       one-time upgrade and, on sites without Identity, the every-page
+       write; 1.16.0). Never use in new code paths. */
     function setCookieHostOnly(name, value, days) {
         var expires = '';
         if (days) {
@@ -1364,6 +1343,169 @@
         var ageMs = Date.now() - written;
         var ttlMs = (expiryDays - graceDays) * 86400000;
         return ageMs >= ttlMs;
+    }
+
+    /* ─────────────────────────────────────────────
+       CONSENT RECORD: END DATE, DOMAIN, WHEN TO WRITE (1.16.0)
+       Every record carries exp (when the choice ends, whole seconds since
+       1970) and dom (the domain the banner writes it on, empty when
+       host-only), so Beexy Identity 0.16.0+ can send it back from the server
+       for exactly the time left. Where Identity's loader is on the page the
+       banner writes only on a change; elsewhere it keeps writing on every
+       page, with the time left. A short guard writes a new choice again when
+       a late server reply puts an older one back. Design:
+       docs/superpowers/specs/2026-11-20-consent-cookie-write-on-change-design.md
+       Built per: docs/superpowers/plans/2026-11-20-consent-1.16.0-build.md
+       withEndAndDomain, secondsLeft, upgradedRecord, shouldRefreshEveryPage
+       and provisionalNeedsWrite are logic-identical to
+       test/unit/consentRecordWrite.fixture.js; guardDecision to
+       test/unit/consentGuard.fixture.js (mirror changes in the same commit).
+       ───── */
+    function withEndAndDomain(record, nowMs, days, rootDomain) {
+        record.exp = Math.floor(nowMs / 1000 + days * 86400);
+        record.dom = rootDomain || '';
+        return record;
+    }
+
+    function secondsLeft(record, nowMs) {
+        if (!record || typeof record.exp !== 'number') return 0;
+        return record.exp - Math.floor(nowMs / 1000);
+    }
+
+    function upgradedRecord(record, nowMs, days, rootDomain, schemaVersion) {
+        if (!record || typeof record !== 'object' || typeof record.exp === 'number') return null;
+        if (record.version !== schemaVersion || typeof record.timestamp !== 'string') return null;
+        var written = Date.parse(record.timestamp);
+        if (isNaN(written)) return null;
+        var exp = Math.floor(written / 1000 + days * 86400);
+        if (exp <= Math.floor(nowMs / 1000)) return null;
+        var copy = {};
+        for (var k in record) {
+            if (Object.prototype.hasOwnProperty.call(record, k)) { copy[k] = record[k]; }
+        }
+        copy.exp = exp;
+        copy.dom = rootDomain || '';
+        return copy;
+    }
+
+    function shouldRefreshEveryPage(identityPresent, record, nowMs) {
+        return identityPresent !== true && secondsLeft(record, nowMs) > 0;
+    }
+
+    function provisionalNeedsWrite(existing, permissions, region, gpcApplied, expired) {
+        if (!existing || typeof existing !== 'object' || expired === true) return true;
+        var had = existing.permissions || {};
+        var keys = ['necessary', 'preferences', 'analytics', 'marketing'];
+        for (var i = 0; i < keys.length; i++) {
+            if ((had[keys[i]] === true) !== (permissions[keys[i]] === true)) return true;
+        }
+        if (existing.region !== region) return true;
+        return (existing.gpcApplied === true) !== (gpcApplied === true);
+    }
+
+    function guardDecision(memory, cookieRaw, nowMs, windowMs) {
+        if (!memory || typeof memory !== 'object' || typeof memory.t !== 'number') return 'none';
+        if (nowMs < memory.t || nowMs - memory.t > windowMs) return 'none';
+        if (!cookieRaw || (memory.d !== true && cookieRaw === memory.v)) return 'none';
+        var current;
+        try { current = JSON.parse(cookieRaw); } catch (e) { return 'none'; }
+        if (!current || typeof current.timestamp !== 'string') return 'none';
+        var currentMs = Date.parse(current.timestamp);
+        if (isNaN(currentMs)) return 'none';
+        if (memory.d === true) return currentMs < memory.t ? 'delete' : 'none';
+        var rememberedMs = Date.parse(memory.ts);
+        if (isNaN(rememberedMs)) return 'none';
+        return currentMs < rememberedMs ? 'rewrite' : 'none';
+    }
+
+    var LAST_WRITE_KEY = 'beexyConsentLastWrite';
+    var GUARD_WINDOW_MS = 30000;
+    var GUARD_CHECK_DELAYS = [1000, 2000, 5000, 10000, 20000, 29000];
+
+    function readConsentWrite() {
+        try {
+            var s = window.sessionStorage.getItem(LAST_WRITE_KEY);
+            return s ? JSON.parse(s) : null;
+        } catch (e) { return null; }
+    }
+
+    function runConsentGuard() {
+        var memory = readConsentWrite();
+        var nowMs = new Date().getTime();
+        var action = guardDecision(memory, readCookie(cfg.cookieName), nowMs, GUARD_WINDOW_MS);
+        if (action === 'rewrite') {
+            var rec;
+            try { rec = JSON.parse(memory.v); } catch (e) { return false; }
+            var left = secondsLeft(rec, nowMs);
+            if (left <= 0) return false;
+            setCookie(cfg.cookieName, memory.v, left / 86400);
+            return true;
+        }
+        if (action === 'delete') { setCookie(cfg.cookieName, '', -1); return true; }
+        return false;
+    }
+
+    function scheduleConsentGuard() {
+        for (var i = 0; i < GUARD_CHECK_DELAYS.length; i++) {
+            setTimeout(runConsentGuard, GUARD_CHECK_DELAYS[i]);
+        }
+    }
+
+    function scheduleConsentGuardIfRecent() {
+        var memory = readConsentWrite();
+        var nowMs = new Date().getTime();
+        if (memory && typeof memory.t === 'number' && nowMs >= memory.t && nowMs - memory.t <= GUARD_WINDOW_MS) {
+            scheduleConsentGuard();
+        }
+    }
+
+    function rememberConsentWrite(json, timestamp, deleted, nowMs) {
+        try {
+            window.sessionStorage.setItem(LAST_WRITE_KEY, JSON.stringify({ v: json, ts: timestamp, d: deleted, t: nowMs }));
+        } catch (e) { return; }
+        scheduleConsentGuard();
+    }
+
+    function writeConsentRecord(record, days) {
+        var nowMs = new Date().getTime();
+        var json = JSON.stringify(withEndAndDomain(record, nowMs, days, ROOT_DOMAIN));
+        setCookie(cfg.cookieName, json, days);
+        rememberConsentWrite(json, record.timestamp, false, nowMs);
+    }
+
+    function upgradeConsentRecord() {
+        var raw = readCookie(cfg.cookieName);
+        if (!raw) return false;
+        var rec;
+        try { rec = JSON.parse(raw); } catch (e) { return false; }
+        var nowMs = new Date().getTime();
+        var up = upgradedRecord(rec, nowMs, getConsentExpiry(), ROOT_DOMAIN, cfg.version);
+        if (!up) return false;
+        var upJson = JSON.stringify(up);
+        setCookie(cfg.cookieName, upJson, secondsLeft(up, nowMs) / 86400);
+        if (ROOT_DOMAIN) {
+            setCookieHostOnly(cfg.cookieName, '', -1);
+            setCookieHostOnly(GEO_COOKIE_NAME, '', -1);
+        }
+        logMigration(cfg.cookieName);
+        return true;
+    }
+
+    function refreshConsentCookies() {
+        var raw = readCookie(cfg.cookieName);
+        if (!raw) return;
+        var rec;
+        try { rec = JSON.parse(raw); } catch (e) { return; }
+        var nowMs = new Date().getTime();
+        if (!shouldRefreshEveryPage(isIdentityPresent(), rec, nowMs)) return;
+        var days = secondsLeft(rec, nowMs) / 86400;
+        setCookie(cfg.cookieName, raw, days);
+        var geo = readCookie(GEO_COOKIE_NAME);
+        if (isKnownRegion(geo)) { setCookie(GEO_COOKIE_NAME, geo, days); }
+        if (ROOT_DOMAIN) {
+            setCookieHostOnly(cfg.cookieName, '', -1);
+            setCookieHostOnly(GEO_COOKIE_NAME, '', -1);
+        }
     }
 
     /* ═══════════════════════════════════════════════
@@ -1535,7 +1677,7 @@
         consentState.explicitConsent = true;
 
         var consentExpiry = getConsentExpiry();
-        setCookie(cfg.cookieName, JSON.stringify(withPhoneUseMark({
+        writeConsentRecord(withPhoneUseMark({
             cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
@@ -1543,7 +1685,7 @@
             timestamp: new Date().toISOString(),
             region: cfg.region,
             gpcApplied: isGpcEnabled()
-        }, cfg.regionCookiePhoneUse)), consentExpiry);
+        }, cfg.regionCookiePhoneUse), consentExpiry);
         // Never store a failed lookup ("unknown") as the region (backlog 70).
         if (isKnownRegion(cfg.region)) {
             setCookie(GEO_COOKIE_NAME, cfg.region, consentExpiry);
@@ -2226,7 +2368,7 @@
         consentState.permissions = permissions;
         consentState.explicitConsent = true;
         var expiry = getConsentExpiry();
-        setCookie(cfg.cookieName, JSON.stringify({
+        writeConsentRecord({
             cid: getOrCreateConsentId(),
             version: consentState.version,
             permissions: permissions,
@@ -2234,7 +2376,7 @@
             timestamp: new Date().toISOString(),
             region: carriedRegion,
             gpcApplied: !!token.c.g
-        }), expiry);
+        }, expiry);
         // The carried region may be "unknown"; it stays in the consent record
         // above but is never stored as this site's region cookie (backlog 70).
         if (isKnownRegion(carriedRegion)) {
@@ -4163,6 +4305,16 @@
                 globalConfig = FALLBACK_CONFIG;
             }
 
+            /* 1.16.0, before anything reads the consent record: the guard (a
+               late server reply must not bring back an older choice), the
+               one-time upgrade (exp and dom for older records), and, only on
+               sites without Identity's loader, today's write on every page with
+               the time left. At most one write per cookie.
+               Built per: docs/superpowers/plans/2026-11-20-consent-1.16.0-build.md */
+            var guardWrote = runConsentGuard();
+            scheduleConsentGuardIfRecent();
+            if (!guardWrote && !upgradeConsentRecord()) { refreshConsentCookies(); }
+
             /* Fire correct consent defaults based on region config.
                Standalone mode: single consent,default call (no pessimistic-then-update).
                GTM mode: defaults already set by template (all denied + wait_for_update).
@@ -4189,7 +4341,13 @@
                     var needsUpdate = defaults.preferences || defaults.analytics || defaults.marketing;
                     if (needsUpdate) {
                         updateConsentMode(defaults);
-                        writeProvisionalConsent(defaults);
+                        /* 1.16.0: only when the record is new, differs or has run out. */
+                        if (provisionalNeedsWrite(existingParsed, defaults, cfg.region, isGpcEnabled(), existingParsed ? isConsentExpired(existingParsed, getConsentExpiry(), 1) : true)) {
+                            writeProvisionalConsent(defaults);
+                        } else {
+                            consentState.explicitConsent = false;
+                            window.beexyConsent = consentState;
+                        }
                     }
                 }
             }
@@ -4215,7 +4373,7 @@
                 consentState.explicitConsent = false;
                 window.beexyConsent = consentState;
                 var autoGrantExpiry = getConsentExpiry();
-                setCookie(cfg.cookieName, JSON.stringify({
+                writeConsentRecord({
                     cid: getOrCreateConsentId(),
                     version: consentState.version,
                     permissions: allGranted,
@@ -4223,7 +4381,7 @@
                     timestamp: new Date().toISOString(),
                     region: cfg.region,
                     gpcApplied: false
-                }), autoGrantExpiry);
+                }, autoGrantExpiry);
                 // Never store a failed lookup ("unknown") as the region (backlog 70).
                 if (isKnownRegion(cfg.region)) {
                     setCookie(GEO_COOKIE_NAME, cfg.region, autoGrantExpiry);
@@ -4527,7 +4685,7 @@
                 consentState.permissions = Object.assign({}, consentState.permissions, permissions);
                 window.beexyConsent = consentState;
                 var apiExpiry = getConsentExpiry();
-                setCookie(cfg.cookieName, JSON.stringify({
+                writeConsentRecord({
                     cid: getOrCreateConsentId(),
                     version: consentState.version,
                     permissions: consentState.permissions,
@@ -4535,7 +4693,7 @@
                     timestamp: new Date().toISOString(),
                     region: cfg.region,
                     gpcApplied: isGpcEnabled()
-                }), apiExpiry);
+                }, apiExpiry);
                 // Never store a failed lookup ("unknown") as the region (backlog 70).
                 if (isKnownRegion(cfg.region)) {
                     setCookie(GEO_COOKIE_NAME, cfg.region, apiExpiry);
@@ -4547,6 +4705,7 @@
         },
         resetConsent: function () {
             setCookie(cfg.cookieName, '', -1);
+            rememberConsentWrite('', '', true, new Date().getTime());
             showBanner();
             switchTab('consent');
             hideWidget();
